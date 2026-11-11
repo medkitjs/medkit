@@ -3,12 +3,13 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   # Newer pushes cancel older runs on feature branches; main runs every commit.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
