@@ -17,7 +17,7 @@ export interface ImageOptions {
 
 // Bump whenever the same input and options would produce different files, so
 // every cached manifest is invalidated.
-const PIPELINE_VERSION = 1;
+const PIPELINE_VERSION = 2;
 
 const PLACEHOLDER_MAX = 600;
 const PLACEHOLDER_WIDTHS = [20, 16, 12];
@@ -46,11 +46,19 @@ export async function processImage(input: string, options: ImageOptions = {}): P
 
   // Decoding once to raw sRGB pixels applies EXIF orientation and leaves every
   // metadata block (EXIF, GPS, XMP, ICC) behind, because raw pixels carry none.
-  const { data, info } = await sharp(bytes)
-    .rotate()
-    .toColorspace('srgb')
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+  let { data, info } = await sharp(bytes).rotate().toColorspace('srgb').raw().toBuffer({ resolveWithObject: true });
+  const ratio = exactRatio(info.width, info.height);
+  if (ratio.width !== info.width || ratio.height !== info.height) {
+    ({ data, info } = await sharp(data, { raw: info })
+      .extract({
+        left: Math.floor((info.width - ratio.width) / 2),
+        top: Math.floor((info.height - ratio.height) / 2),
+        width: ratio.width,
+        height: ratio.height,
+      })
+      .raw()
+      .toBuffer({ resolveWithObject: true }));
+  }
   const raw = { width: info.width, height: info.height, channels: info.channels };
   const pixels = () => sharp(data, { raw });
 
@@ -61,13 +69,14 @@ export async function processImage(input: string, options: ImageOptions = {}): P
   ] as const;
 
   await mkdir(outDir, { recursive: true });
-  const sizes = pickWidths(widths, info.width);
+  const sizes = snapWidths(pickWidths(widths, info.width), ratio);
   const renditions = await Promise.all(
     formats.map(({ ext, encode }) =>
       Promise.all(
         sizes.map(async (width): Promise<Rendition> => {
           const src = `${id}-${width}.${ext}`;
-          const out = await encode(pixels().resize({ width })).toFile(join(outDir, src));
+          const height = (width / ratio.stepX) * ratio.stepY;
+          const out = await encode(pixels().resize({ width, height, fit: 'fill' })).toFile(join(outDir, src));
           return { src, width: out.width, height: out.height, bytes: out.size };
         }),
       ),
@@ -96,6 +105,42 @@ export async function processImage(input: string, options: ImageOptions = {}): P
   // Written last, so a manifest on disk always means every file it lists was written.
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   return manifest;
+}
+
+/** Ratio steps above this are cropped to a simpler ratio; below it, snapped widths stay within half a step of the standard ones. */
+const MAX_STEP = 64;
+
+/**
+ * The size to encode from, and its ratio in lowest terms (`stepX`:`stepY`).
+ *
+ * Every rendition must have exactly the declared aspect ratio. With
+ * `height: auto`, browsers switch from the declared ratio to the loaded
+ * file's own once it arrives, so a height rounded by even half a pixel moves
+ * everything below the image. A source whose ratio has a step over 64px, such
+ * as 1601×900, is cropped centrally by the fewest pixels to a ratio that does
+ * not (1600×900).
+ */
+export function exactRatio(width: number, height: number) {
+  const g = gcd(width, height);
+  if (width / g <= MAX_STEP) return { width, height, stepX: width / g, stepY: height / g };
+  let best = { width: 0, height: 0, stepX: 1, stepY: 1 };
+  for (let p = 1; p <= MAX_STEP; p++) {
+    const q = Math.max(1, Math.round((p * height) / width));
+    if (gcd(p, q) !== 1) continue;
+    const k = Math.min(Math.floor(width / p), Math.floor(height / q));
+    if (k * p * k * q > best.width * best.height) best = { width: k * p, height: k * q, stepX: p, stepY: q };
+  }
+  return best;
+}
+
+/** Each width moved to the nearest multiple of the ratio's step, so its height is a whole number. */
+function snapWidths(widths: number[], { width, stepX }: { width: number; stepX: number }): number[] {
+  const snapped = widths.map((w) => Math.min(width, Math.max(stepX, Math.round(w / stepX) * stepX)));
+  return [...new Set(snapped)];
+}
+
+function gcd(a: number, b: number): number {
+  return b ? gcd(b, a % b) : a;
 }
 
 async function makePlaceholder(pixels: () => Sharp): Promise<string | undefined> {

@@ -71,6 +71,10 @@ describe('CDN images', () => {
     expect(html).toContain('width="1600" height="900"');
   });
 
+  test('the declared ratio is fixed in CSS, so a CDN rounding a file height cannot resize the box', () => {
+    expect(renderImage('hero.jpg', options)).toMatch(/<img [^>]*style="[^"]*;aspect-ratio:1600\/900"/);
+  });
+
   test('width and height are required, because there is no manifest to read them from', () => {
     expect(() => renderImage('hero.jpg', { loader, alt: 'Hero' } as typeof options)).toThrow(/needs its width and height/);
   });

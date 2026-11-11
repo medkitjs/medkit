@@ -152,5 +152,6 @@ vite.config.ts.timestamp-*
 test-results/
 playwright-report/
 
-# Media the browser tests generate
+# Media and pages the browser tests generate
 examples/html/media/
+examples/html/layout.html

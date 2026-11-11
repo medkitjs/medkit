@@ -175,6 +175,9 @@ importers:
       '@medkitjs/core':
         specifier: workspace:*
         version: link:packages/core
+      '@medkitjs/elements':
+        specifier: workspace:*
+        version: link:packages/elements
       '@playwright/test':
         specifier: ^1.65.0
         version: 1.65.0
@@ -202,6 +205,9 @@ importers:
       vitest:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@22.20.5)(vite@8.3.7(@types/node@22.20.5)(yaml@2.9.1))
+      web-vitals:
+        specifier: ^6.2.3
+        version: 6.2.3
 
   packages/cli:
     dependencies:
@@ -2043,6 +2049,9 @@ packages:
       jsdom:
         optional: true
 
+  web-vitals@6.2.3:
+    resolution: {integrity: sha512-Dmy+vdO1UPMqXiAtZSNayhl4f794Bxfd94W4HIj2HlYtczEQfEOon969memlcpcHrTuOKLa5baFjX7WbgmOq+A==}
+
   why-is-node-running@3.2.1:
     resolution: {integrity: sha512-Tb2FUhB4vUsGQlfSquQLYkApkuPAFQXGFzxWKHHumVz2dK+X1RUm/HnID4+TfIGYJ1kTcwOaCk/buYCEJr6YjQ==}
     engines: {node: '>=20.11'}
@@ -3689,6 +3698,8 @@ snapshots:
       '@types/node': 22.20.5
     transitivePeerDependencies:
       - msw
+
+  web-vitals@6.2.3: {}
 
   why-is-node-running@3.2.1: {}
 

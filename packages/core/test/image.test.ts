@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import schema from '../../elements/dist/manifest.schema.json' with { type: 'json' };
+import { exactRatio } from '../src/image.js';
 import { processImage } from '../src/index.js';
 
 const validate = new Ajv({ allErrors: true }).compile(schema);
@@ -56,6 +57,28 @@ describe('processImage', () => {
         expect((await stat(file)).size, `${r.src} byte count`).toBe(r.bytes);
       }
     }
+  });
+
+  test('every rendition has exactly the source aspect ratio, so its box never changes when the file loads', async () => {
+    const input = join(dir, 'photo.jpg');
+    await solid(1200, 800, { r: 50, g: 60, b: 70, alpha: 1 }).jpeg().toFile(input);
+
+    const manifest = await processImage(input, { outDir: dir });
+
+    expect(manifest.jpeg.map((r) => r.width), '3:2 widths snap to multiples of 3').toEqual([321, 639, 960, 1200]);
+    for (const r of [...manifest.avif, ...manifest.webp, ...manifest.jpeg]) {
+      expect(r.width * manifest.height, `${r.src} is ${r.width}×${r.height}`).toBe(r.height * manifest.width);
+    }
+  });
+
+  test('a source whose ratio has no small step is cropped by the fewest pixels to one that does', async () => {
+    expect(exactRatio(1601, 900)).toEqual({ width: 1600, height: 900, stepX: 16, stepY: 9 });
+    expect(exactRatio(1200, 800), 'a simple ratio is left alone').toEqual({ width: 1200, height: 800, stepX: 3, stepY: 2 });
+
+    const input = join(dir, 'odd.png');
+    await solid(1601, 900, { r: 0, g: 0, b: 0, alpha: 1 }).png().toFile(input);
+    const manifest = await processImage(input, { outDir: dir });
+    expect([manifest.width, manifest.height]).toEqual([1600, 900]);
   });
 
   test('EXIF orientation is applied, then every metadata block, GPS location included, is gone', async () => {

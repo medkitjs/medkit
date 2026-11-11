@@ -53,7 +53,10 @@ export function renderCdnPicture(src: string, options: CdnImageOptions): string 
       loading: priority ? 'eager' : 'lazy',
       fetchpriority: priority ? 'high' : undefined,
       decoding: 'async',
-      style: imgStyle(fit, position),
+      // The CDN rounds each file's height, and with only width/height
+      // attributes the loaded file's ratio would replace the declared one.
+      // There is no art direction here, so a fixed ratio is safe.
+      style: `${imgStyle(fit, position)};aspect-ratio:${width}/${height}`,
     }) +
     '</picture>'
   );
