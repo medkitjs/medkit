@@ -65,7 +65,8 @@ export interface ImageManifest {
   kind: 'image';
   width: Pixels;
   height: Pixels;
-  placeholder: Placeholder;
+  /** Absent when no blur fits in 600 characters; readers fall back to `color`. */
+  placeholder?: Placeholder;
   color: HexColor;
   /** @minItems 1 */
   avif: Rendition[];
