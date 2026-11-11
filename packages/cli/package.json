@@ -9,12 +9,6 @@
     "url": "git+https://github.com/medkitjs/medkit.git",
     "directory": "packages/cli"
   },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
   "files": [
     "dist"
   ],
@@ -23,5 +17,14 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@medkitjs/core": "workspace:*"
+  },
+  "bin": {
+    "medkit": "./dist/index.js"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5"
   }
 }
