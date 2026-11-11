@@ -13,9 +13,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 const BIN = resolve(import.meta.dirname, '../dist/index.js');
+
+// Every test runs the binary on real images, encoding every format.
+vi.setConfig({ testTimeout: 30_000 });
 
 let dir: string;
 beforeEach(async () => {

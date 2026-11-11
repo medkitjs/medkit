@@ -149,7 +149,8 @@ function gcd(a: number, b: number): number {
   return b ? gcd(b, a % b) : a;
 }
 
-async function makePlaceholder(pixels: () => Sharp): Promise<string | undefined> {
+/** The largest blurred WebP data URI that fits in 600 characters, or nothing if none does. */
+export async function makePlaceholder(pixels: () => Sharp): Promise<string | undefined> {
   for (const width of PLACEHOLDER_WIDTHS) {
     for (const quality of PLACEHOLDER_QUALITIES) {
       const webp = await pixels().resize({ width, withoutEnlargement: true }).blur(1).webp({ quality }).toBuffer();
