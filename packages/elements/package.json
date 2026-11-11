@@ -16,7 +16,12 @@
     },
     "./image": {
       "types": "./dist/image.d.ts",
+      "development": "./dist/image-dev.js",
       "default": "./dist/image.js"
+    },
+    "./image-dev": {
+      "types": "./dist/image-dev.d.ts",
+      "default": "./dist/image-dev.js"
     },
     "./video-bg": {
       "types": "./dist/video-bg.d.ts",
