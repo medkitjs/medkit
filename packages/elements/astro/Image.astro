@@ -1,8 +1,10 @@
 ---
-// <medkit-image> for Astro; renders exactly what renderImage() writes.
-import { renderImage, type ImageManifest, type RenderImageOptions } from '@medkitjs/elements';
+// <medkit-image> for Astro; renders exactly what renderImage() writes. Props
+// is defined in render.ts, where tsc checks it; this file is not type-checked
+// until Astro's checker supports TypeScript 7.
+import { renderImage, type ImageProps } from '@medkitjs/elements';
 
-type Props = RenderImageOptions & { manifest: ImageManifest };
+type Props = ImageProps;
 const { manifest, ...options } = Astro.props;
 ---
 

@@ -1,8 +1,7 @@
 import { createElement } from 'react';
-import type { ImageManifest } from './manifest.js';
-import { renderPicture, type RenderImageOptions } from './render.js';
+import { renderPicture, type ImageProps } from './render.js';
 
-export type ImageProps = RenderImageOptions & { manifest: ImageManifest };
+export type { ImageProps };
 
 /** `<medkit-image>` for React and Next.js; renders exactly what renderImage() writes. */
 export function Image({ manifest, ...options }: ImageProps) {

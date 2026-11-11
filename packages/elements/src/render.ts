@@ -37,6 +37,12 @@ export interface RenderImageOptions {
   art?: ArtSource[];
 }
 
+/**
+ * Props of the React and Astro `Image` components. It lives here, in a .ts
+ * module, so tsc checks it: nothing type-checks inside Image.astro yet.
+ */
+export type ImageProps = RenderImageOptions & { manifest: ImageManifest };
+
 function read(manifest: ImageManifest): ImageManifest {
   if (manifest.v !== 1) {
     throw new Error(`medkit: manifest "${manifest.id}" has format version ${manifest.v}; this version of medkit reads only 1`);
