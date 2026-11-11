@@ -59,7 +59,7 @@
       "types": "./dist/react.d.ts",
       "default": "./dist/react.js"
     },
-    "./astro": "./astro/Image.astro"
+    "./astro/*": "./astro/*.astro"
   },
   "files": [
     "dist",

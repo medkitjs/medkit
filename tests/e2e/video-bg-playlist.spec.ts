@@ -14,7 +14,7 @@ const bg = (page: Page, id: string) => page.locator(`#${id}`);
 const position = (page: Page, id: string) => bg(page, id).locator('span');
 const status = (page: Page, id: string) => bg(page, id).locator('[role=status]');
 const activeIndex = (page: Page, id: string) =>
-  page.locator(`#${id} > medkit-clip`).evaluateAll((clips) => clips.findIndex((c) => !(c as HTMLElement).inert));
+  page.locator(`#${id} medkit-clip`).evaluateAll((clips) => clips.findIndex((c) => !(c as HTMLElement).inert));
 
 test('Next and Previous move through the clips with the position shown, wrapping at both ends', async ({ page }) => {
   await page.goto(PAGE);
@@ -69,8 +69,7 @@ test('pausing stops auto-advance', async ({ page }) => {
   await page.goto(PAGE);
   await page.locator('#auto').scrollIntoViewIfNeeded();
   await expect(page.locator('#auto video')).toHaveCount(1);
-  // #auto's clips are under 5 seconds and its controls omit pause, so pause from script.
-  await page.locator('#auto video').evaluate((v: HTMLVideoElement) => v.pause());
+  await bg(page, 'auto').getByRole('button', { name: 'Pause background video' }).click();
   await page.waitForTimeout(3500);
   expect(await activeIndex(page, 'auto')).toBe(0);
 });
@@ -78,12 +77,12 @@ test('pausing stops auto-advance', async ({ page }) => {
 test('the incoming clip fades in on top while the outgoing one stays opaque beneath it', async ({ page }) => {
   await page.goto(PAGE);
   await bg(page, 'list').getByRole('button', { name: 'Next video' }).click();
-  const [outgoing, incoming] = await page.locator('#list > medkit-clip').evaluateAll((clips) =>
+  const [outgoing, incoming] = await page.locator('#list medkit-clip').evaluateAll((clips) =>
     clips.slice(0, 2).map((c) => ({ opacity: getComputedStyle(c).opacity, z: getComputedStyle(c).zIndex })),
   );
   expect(outgoing.opacity, 'the outgoing clip faded while the new one was still transparent').toBe('1');
   expect(incoming.z).toBe('1');
-  await expect.poll(() => page.locator('#list > medkit-clip').first().evaluate((c) => getComputedStyle(c).opacity)).toBe('0');
+  await expect.poll(() => page.locator('#list medkit-clip').first().evaluate((c) => getComputedStyle(c).opacity)).toBe('0');
 });
 
 test("at 75% of a clip, the next clip's video starts loading", async ({ page }) => {
@@ -99,7 +98,7 @@ test("at 75% of a clip, the next clip's video starts loading", async ({ page }) 
 
 test('every change fires medkit-clipchange with the new index', async ({ page }) => {
   await page.goto(PAGE);
-  const changed = page.locator('#list').evaluate(
+  const changed = page.locator('#list medkit-video-bg').evaluate(
     (el) => new Promise((resolve) => el.addEventListener('medkit-clipchange', (e) => resolve((e as CustomEvent).detail.index), { once: true })),
   );
   await bg(page, 'list').getByRole('button', { name: 'Next video' }).click();
@@ -108,7 +107,7 @@ test('every change fires medkit-clipchange with the new index', async ({ page })
 
 test('the pause button can be left out only when every clip is under 5 seconds', async ({ page }) => {
   await page.goto(PAGE);
-  await expect(bg(page, 'auto').getByRole('button', { name: /background video/ }), 'clips under 5s may drop pause').toBeHidden();
+  await expect(bg(page, 'short').getByRole('button', { name: /background video/ }), 'clips under 5s may drop pause').toBeHidden();
   await expect(bg(page, 'list').getByRole('button', { name: /background video/ }), 'a 6s clip must keep pause').toBeVisible();
 });
 
@@ -117,6 +116,6 @@ test('with reduced motion, the posters still change with Previous and Next, at o
   await page.goto(PAGE);
   await bg(page, 'list').getByRole('button', { name: 'Next video' }).click();
   await expect(position(page, 'list')).toHaveText('2 / 3');
-  expect(await page.locator('#list > medkit-clip').first().evaluate((c) => getComputedStyle(c).opacity), 'faded instead of cutting').toBe('0');
+  expect(await page.locator('#list medkit-clip').first().evaluate((c) => getComputedStyle(c).opacity), 'faded instead of cutting').toBe('0');
   await expect(page.locator('#list video')).toHaveCount(0);
 });
