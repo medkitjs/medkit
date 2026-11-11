@@ -142,7 +142,7 @@ async function writeVideoPages(m: Record<string, Clip>) {
       'medkit-video-bg behaviour',
       `      <div id="bg">${renderVideoBg([clip('bg', 'Summer on the river')], { baseUrl, priority: true })}</div>
       <div style="height: 150vh"><p>Spacer, so the next background starts far below the fold.</p></div>
-      <div id="talk">${renderVideoBg([clip('talk', 'Test pattern with a tone')], { baseUrl, controls: 'pause sound' })}</div>`,
+      <div id="talk">${renderVideoBg([clip('talk', 'Test pattern with a tone')], { baseUrl, controls: 'pause sound expand' })}</div>`,
     ),
   );
   await writeFile(

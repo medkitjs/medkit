@@ -1,7 +1,7 @@
 // Covers <medkit-video-bg> in every engine: lazy loading, the poster staying
 // until a frame has painted, the skip conditions, the autoplay-blocked
 // fallback, pausing offscreen and in a hidden tab, the visitor's pause and its
-// memory, and the pause and sound controls.
+// memory, the pause and sound controls, and the expand hand-off.
 //
 // Not covered here: the playlist (video-bg-playlist.spec.ts) and the measured
 // black-frame gate (video-gate.spec.ts).
@@ -137,6 +137,23 @@ test('the sound button shows only for a clip that kept its audio, and its label 
   await button(page, 'talk', /^Turn sound on$/).click();
   await expect(button(page, 'talk', /^Turn sound off$/)).toBeVisible();
   expect(await video(page, 'talk').evaluate((v: HTMLVideoElement) => v.muted)).toBe(false);
+});
+
+test('expand pauses the background and hands over the clip and the moment it was at', async ({ page }) => {
+  await page.goto(PAGE);
+  await page.locator('#talk').scrollIntoViewIfNeeded();
+  await expect.poll(() => video(page, 'talk').evaluate((v: HTMLVideoElement) => v.currentTime), { message: 'never played' }).toBeGreaterThan(0.5);
+  const handed = page.locator('#talk medkit-video-bg').evaluate(
+    (el) => new Promise((resolve) => el.addEventListener('medkit-expand', (e) => resolve((e as CustomEvent).detail), { once: true })),
+  );
+
+  await button(page, 'talk', /^Expand video$/).click();
+
+  const detail = (await handed) as { index: number; src: string; currentTime: number };
+  expect(detail).toMatchObject({ index: 0, src: 'talk' });
+  expect(detail.currentTime).toBeGreaterThan(0.5);
+  expect(await video(page, 'talk').evaluate((v: HTMLVideoElement) => v.paused), 'the background kept playing').toBe(true);
+  await expect(button(page, 'talk', /^Play background video$/)).toBeVisible();
 });
 
 test('the video is decorative: hidden from assistive technology, with no native controls or picture-in-picture', async ({ page }) => {

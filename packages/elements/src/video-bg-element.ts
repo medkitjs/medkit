@@ -15,6 +15,7 @@ const ICONS = {
   soundOff: 'M4 9v6h4l5 4V5L8 9zm16.6 6.2-1.4 1.4-2.7-2.7-2.7 2.7-1.4-1.4 2.7-2.7-2.7-2.7 1.4-1.4 2.7 2.7 2.7-2.7 1.4 1.4-2.7 2.7z',
   prev: 'M15.4 7.4 14 6l-6 6 6 6 1.4-1.4-4.6-4.6z',
   next: 'M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6z',
+  expand: 'M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z',
 };
 
 // The white icon sits on 60% black: at least 5.7:1 over a white frame, and the
@@ -91,6 +92,7 @@ export class MedkitVideoBg extends HTMLElement {
       // WCAG 2.2.2 lets only clips under 5 seconds drop the pause button.
       this.buttons.pause.hidden = !controls.includes('pause') && this.clips.every((c) => Number(c.getAttribute('duration')) < 5);
       if (controls.includes('sound')) make('sound', () => this.toggleSound());
+      if (controls.includes('expand')) make('expand', () => this.expand());
     }
 
     // The server shows only the first clip; from here, inactive clips are
@@ -269,6 +271,23 @@ export class MedkitVideoBg extends HTMLElement {
     this.update();
   }
 
+  /**
+   * Hands the clip over to a player: pauses the background as if the visitor
+   * had (without remembering it), and tells the page which clip and where.
+   * Opening the popup and resuming afterwards come with <medkit-player>.
+   */
+  private expand() {
+    const video = this.video;
+    this.userPaused = true;
+    this.sync();
+    this.update();
+    this.dispatchEvent(
+      new CustomEvent('medkit-expand', {
+        detail: { index: this.index, clip: this.clip, src: this.clip.getAttribute('src'), currentTime: video?.currentTime ?? 0 },
+      }),
+    );
+  }
+
   private toggleSound() {
     const video = this.video;
     if (video) video.muted = !video.muted;
@@ -276,7 +295,7 @@ export class MedkitVideoBg extends HTMLElement {
   }
 
   private update() {
-    const { pause, sound, prev, next } = this.buttons;
+    const { pause, sound, prev, next, expand } = this.buttons;
     const set = (button: HTMLButtonElement | undefined, icon: keyof typeof ICONS, text: string) => {
       if (!button) return;
       button.setAttribute('aria-label', text);
@@ -288,6 +307,7 @@ export class MedkitVideoBg extends HTMLElement {
     set(sound, muted ? 'soundOff' : 'soundOn', label(muted ? 'soundOn' : 'soundOff'));
     if (sound) sound.hidden = !this.clip.hasAttribute('audio');
     const values = { current: this.index + 1, total: this.clips.length };
+    set(expand, 'expand', label('expand'));
     set(prev, 'prev', label('prev'));
     set(next, 'next', label('next', values));
     if (this.position) this.position.textContent = label('position', values);

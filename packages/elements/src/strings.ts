@@ -8,6 +8,7 @@ export const strings = {
   pause: 'Pause background video',
   soundOn: 'Turn sound on',
   soundOff: 'Turn sound off',
+  expand: 'Expand video',
   prev: 'Previous video',
   next: 'Next video',
   position: '{current} / {total}',
