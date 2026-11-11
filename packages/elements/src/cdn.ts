@@ -35,7 +35,9 @@ export function renderCdnPicture(src: string, options: CdnImageOptions): string 
   // critical path would compete with the hero itself.
   if (placeholder === 'blur' && !priority) {
     const size = fit === 'contain' ? 'contain' : fit === 'fill' ? '100% 100%' : 'cover';
-    backgrounds.push(`url("${loader(src, { width: BLUR_WIDTH }).replace(/[\\"]/g, '\\$&')}") ${position}/${size} no-repeat`);
+    // A quote, backslash or newline in the URL would end the CSS string; each becomes a CSS hex escape.
+    const url = loader(src, { width: BLUR_WIDTH }).replace(/[\\"\n\r\f]/g, (c) => `\\${c.charCodeAt(0).toString(16)} `);
+    backgrounds.push(`url("${url}") ${position}/${size} no-repeat`);
   }
   if (placeholder !== 'none' && color) backgrounds.push(color);
 
