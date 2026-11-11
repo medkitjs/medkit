@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/elements" },
+    { "path": "packages/core" },
+    { "path": "packages/cli" },
+    { "path": "packages/vite" }
+  ]
+}

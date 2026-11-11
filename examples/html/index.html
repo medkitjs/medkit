@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>medkit fixture</title>
+    <script type="module" src="/packages/elements/dist/image.js"></script>
+    <script type="module" src="/packages/elements/dist/video-bg.js"></script>
+    <script type="module" src="/packages/elements/dist/player.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>medkit fixture</h1>
+      <p>The page the browser tests run against. It grows with each element.</p>
+      <medkit-image style="aspect-ratio: 4 / 3">
+        <picture>
+          <img
+            src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3'%3E%3Crect width='4' height='3' fill='%231d2433'/%3E%3C/svg%3E"
+            width="400"
+            height="300"
+            alt="A dark blue rectangle"
+          />
+        </picture>
+      </medkit-image>
+    </main>
+  </body>
+</html>

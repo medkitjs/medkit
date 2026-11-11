@@ -1,0 +1,27 @@
+{
+  "name": "@medkitjs/core",
+  "version": "0.0.0",
+  "description": "Image and video processing with sharp and ffmpeg",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/medkitjs/medkit.git",
+    "directory": "packages/core"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

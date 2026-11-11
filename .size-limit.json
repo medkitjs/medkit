@@ -1,0 +1,32 @@
+[
+  {
+    "name": "<medkit-image>",
+    "path": "packages/elements/dist/image.js",
+    "limit": "2 KB",
+    "gzip": true
+  },
+  {
+    "name": "<medkit-video-bg>",
+    "path": "packages/elements/dist/video-bg.js",
+    "limit": "4 KB",
+    "gzip": true
+  },
+  {
+    "name": "<medkit-player>, excluding hls.js",
+    "path": "packages/elements/dist/player.js",
+    "limit": "9 KB",
+    "gzip": true,
+    "ignore": ["hls.js"]
+  },
+  {
+    "name": "All three elements",
+    "path": [
+      "packages/elements/dist/image.js",
+      "packages/elements/dist/video-bg.js",
+      "packages/elements/dist/player.js"
+    ],
+    "limit": "14 KB",
+    "gzip": true,
+    "ignore": ["hls.js"]
+  }
+]
