@@ -1,6 +1,7 @@
 // Covers the built `medkit` binary end to end, run as a child process: folder
 // processing, medkit.config.js and --out, exit codes, --concurrency checks,
-// duplicate ids and --watch. Runs dist/, so run `pnpm build` first.
+// duplicate ids, and --watch, including duplicate ids among new files. Runs
+// dist/, so run `pnpm build` first.
 //
 // Not covered: what processImage writes for each file, which core's tests
 // cover, and whether concurrency actually overlaps jobs, which only timing
@@ -103,6 +104,26 @@ test('--watch processes an image added after it started', async () => {
 
     await until(() => exists('public/media/late.json'));
     expect(JSON.parse(await readFile(join(dir, 'public/media/late.json'), 'utf8')).id).toBe('late');
+  } finally {
+    child.kill();
+  }
+});
+
+test("--watch refuses a new image whose name another image already owns, and leaves that image's output alone", async () => {
+  await image('src/media/hero.png');
+  const child = spawn(process.execPath, [BIN, 'process', 'src/media', '--watch'], { cwd: dir });
+  try {
+    let output = '';
+    let errors = '';
+    child.stdout.on('data', (chunk) => (output += chunk));
+    child.stderr.on('data', (chunk) => (errors += chunk));
+    await until(() => output.includes('watching'));
+    const before = await readFile(join(dir, 'public/media/hero.json'), 'utf8');
+
+    await sharp({ create: { width: 90, height: 30, channels: 3, background: '#ff0000' } }).png().toFile(join(dir, 'src/media/nested/hero.png'));
+
+    await until(() => errors.includes('would both write "hero"'));
+    expect(await readFile(join(dir, 'public/media/hero.json'), 'utf8'), 'the first hero was overwritten').toBe(before);
   } finally {
     child.kill();
   }

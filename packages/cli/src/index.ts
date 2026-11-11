@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { watch } from 'node:fs';
+import { existsSync, watch } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { basename, extname, join, resolve } from 'node:path';
@@ -61,7 +61,7 @@ async function main(argv: string[]): Promise<number | undefined> {
   console.log(`medkit: ${files.length - failed} of ${files.length} images processed into ${outDir}`);
 
   if (values.watch) {
-    watchImages(root, outDir);
+    watchImages(root, outDir, seen);
     return undefined;
   }
   return failed ? 1 : 0;
@@ -86,7 +86,8 @@ async function runAll(files: string[], limit: number, job: (file: string) => Pro
   return failed;
 }
 
-function watchImages(root: string, outDir: string) {
+/** `seen` maps each id to the one file that owns it, as checked before the first run. */
+function watchImages(root: string, outDir: string, seen: Map<string, string>) {
   const pending = new Map<string, NodeJS.Timeout>();
   console.log(`medkit: watching ${root}`);
   watch(root, { recursive: true }, (_, name) => {
@@ -98,6 +99,18 @@ function watchImages(root: string, outDir: string) {
       file,
       setTimeout(() => {
         pending.delete(file);
+        const id = basename(file, extname(file));
+        const owner = seen.get(id);
+        if (!existsSync(file)) {
+          if (owner === file) seen.delete(id);
+          return;
+        }
+        // The owner may have been renamed or deleted without an event yet.
+        if (owner && owner !== file && existsSync(owner)) {
+          console.error(`medkit: ${owner} and ${file} would both write "${id}"; rename one. Skipped ${file}`);
+          return;
+        }
+        seen.set(id, file);
         processImage(file, { outDir }).then(
           () => console.log(`medkit: processed ${file}`),
           (error: Error) => {
