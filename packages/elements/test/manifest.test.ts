@@ -63,7 +63,9 @@ const valid = {
   'an image whose blur did not fit, with only its colour': imageWithoutPlaceholder,
   'a video with H.264 and AV1 renditions and HLS': video,
   'a video processed without HLS': videoWithoutHls,
-  'a video that kept its audio': { ...video, audio: true },
+  'a video that kept its audio': { ...video, audio: 'mp4a.40.2' },
+  'a video whose poster is not its first frame': { ...video, poster: { ...video.poster, at: 3.5 } },
+  'a video whose poster blur did not fit': { ...video, poster: { id: 'festival-poster', color: '#1d2433' } },
 } satisfies Record<string, Manifest>;
 
 const { v: _v, ...unversioned } = image;
@@ -158,6 +160,16 @@ describe('manifest schema', () => {
   test('the hash is lowercase hex', () => {
     expect(accepts({ ...image, hash: 'B3F9C2' }), 'uppercase hash').toBe(false);
     expect(accepts({ ...image, hash: '' }), 'an empty hash').toBe(false);
+  });
+
+  test('audio is either false or the AAC codec string, never a bare true', () => {
+    expect(accepts({ ...video, audio: true }), 'audio: true').toBe(false);
+    expect(accepts({ ...video, audio: 'mp4a.40.5' }), 'HE-AAC, which medkit never writes').toBe(false);
+  });
+
+  test('a poster time is a positive number of seconds', () => {
+    expect(accepts({ ...video, poster: { ...video.poster, at: 0 } }), 'at: 0, which is written as absent').toBe(false);
+    expect(accepts({ ...video, poster: { ...video.poster, at: -1 } }), 'a negative time').toBe(false);
   });
 
   test('a codec other than H.264 or AV1 is rejected', () => {
