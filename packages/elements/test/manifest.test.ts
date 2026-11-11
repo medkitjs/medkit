@@ -54,11 +54,13 @@ const video = {
 } satisfies VideoManifest;
 
 const { hls: _, ...videoWithoutHls } = video;
+const { placeholder: _p, ...imageWithoutPlaceholder } = image;
 
 // Every shape the types allow should appear here at least once, optional
 // fields both present and absent. `satisfies` checks each entry separately.
 const valid = {
   'an image with every field': image,
+  'an image whose blur did not fit, with only its colour': imageWithoutPlaceholder,
   'a video with H.264 and AV1 renditions and HLS': video,
   'a video processed without HLS': videoWithoutHls,
   'a video that kept its audio': { ...video, audio: true },
@@ -115,7 +117,8 @@ describe('manifest schema', () => {
 
   test('every required field is required', () => {
     for (const manifest of [image, video] as Record<string, unknown>[]) {
-      for (const key of Object.keys(manifest).filter((k) => k !== 'hls')) {
+      const optional = manifest.kind === 'image' ? 'placeholder' : 'hls';
+      for (const key of Object.keys(manifest).filter((k) => k !== optional)) {
         const { [key]: _, ...rest } = manifest;
         expect(accepts(rest), `a ${manifest.kind} manifest missing ${key}`).toBe(false);
       }

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>medkit-image behaviour</title>
+    <script type="module" src="/packages/elements/dist/image.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>medkit-image behaviour</h1>
+      <medkit-image id="hero" priority>
+        <picture style="display: block; background: #1d2433">
+          <img
+            src="media/hero-1280.jpg"
+            srcset="media/hero-640.jpg 640w, media/hero-1280.jpg 1280w"
+            sizes="100vw"
+            width="2400"
+            height="1350"
+            alt="An orange gradient over dark blue"
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
+            style="display: block; width: 100%; height: auto"
+          />
+        </picture>
+      </medkit-image>
+      <medkit-image id="broken">
+        <picture style="display: block; background: #334155">
+          <img src="media/missing.jpg" width="640" height="427" alt="A photo that is missing" style="display: block; width: 100%; height: auto" />
+        </picture>
+      </medkit-image>
+      <div style="height: 150vh"></div>
+      <medkit-image id="lazy">
+        <picture style="display: block; background: #334155">
+          <img
+            src="media/gallery-1-639.jpg"
+            width="1200"
+            height="800"
+            alt="A grey gradient into amber"
+            loading="lazy"
+            decoding="async"
+            style="display: block; width: 100%; height: auto"
+          />
+        </picture>
+      </medkit-image>
+    </main>
+  </body>
+</html>

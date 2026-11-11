@@ -1,20 +1,33 @@
 {
   "name": "@medkitjs/cli",
   "version": "0.0.0",
-  "description": "Command line for processing media with medkit",
+  "private": true,
+  "description": "Command line for medkit: process a folder of media into responsive variants and manifests, once or in watch mode",
+  "keywords": [
+    "cli",
+    "image-processing",
+    "sharp",
+    "avif",
+    "webp",
+    "responsive-images",
+    "build-tool"
+  ],
   "license": "MIT",
-  "type": "module",
+  "author": "koyev",
+  "homepage": "https://github.com/medkitjs/medkit/tree/main/packages/cli#readme",
+  "bugs": {
+    "url": "https://github.com/medkitjs/medkit/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/medkitjs/medkit.git",
     "directory": "packages/cli"
   },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
+  "type": "module",
   "files": [
     "dist"
   ],
@@ -22,6 +35,15 @@
     "build": "tsc -b"
   },
   "engines": {
-    "node": ">=22"
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
+  },
+  "dependencies": {
+    "@medkitjs/core": "workspace:*"
+  },
+  "bin": {
+    "medkit": "./dist/index.js"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5"
   }
 }

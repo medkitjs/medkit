@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: 'tests/e2e',
+  globalSetup: './tests/e2e/setup.ts',
   reporter: 'list',
   use: { baseURL: 'http://localhost:4173' },
   projects: [

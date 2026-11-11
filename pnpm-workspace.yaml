@@ -1,2 +1,6 @@
 packages:
   - packages/*
+
+# Fails pnpm install on a Node outside "engines", so an unpatched Node
+# cannot install. pnpm 12 reads this here; it ignores engine-strict in .npmrc.
+engineStrict: true

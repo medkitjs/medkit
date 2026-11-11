@@ -1,14 +1,37 @@
 {
   "name": "@medkitjs/elements",
   "version": "0.0.0",
-  "description": "Accessible, dependency-free media custom elements and SSR helpers",
+  "private": true,
+  "description": "Accessible, dependency-free media custom elements and SSR helpers for images, background video and playback",
+  "keywords": [
+    "custom-elements",
+    "web-components",
+    "responsive-images",
+    "picture",
+    "srcset",
+    "avif",
+    "webp",
+    "lazy-loading",
+    "accessibility",
+    "ssr",
+    "cdn"
+  ],
   "license": "MIT",
-  "type": "module",
+  "author": "koyev",
+  "homepage": "https://github.com/medkitjs/medkit/tree/main/packages/elements#readme",
+  "bugs": {
+    "url": "https://github.com/medkitjs/medkit/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/medkitjs/medkit.git",
     "directory": "packages/elements"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -16,7 +39,12 @@
     },
     "./image": {
       "types": "./dist/image.d.ts",
+      "development": "./dist/image-dev.js",
       "default": "./dist/image.js"
+    },
+    "./image-dev": {
+      "types": "./dist/image-dev.d.ts",
+      "default": "./dist/image-dev.js"
     },
     "./video-bg": {
       "types": "./dist/video-bg.d.ts",
@@ -26,15 +54,41 @@
       "types": "./dist/player.d.ts",
       "default": "./dist/player.js"
     },
-    "./manifest.schema.json": "./dist/manifest.schema.json"
+    "./manifest.schema.json": "./dist/manifest.schema.json",
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./astro": "./astro/Image.astro"
   },
   "files": [
-    "dist"
+    "dist",
+    "astro"
   ],
   "scripts": {
     "build": "tsc -b && ts-json-schema-generator --path src/manifest.ts --type Manifest --out dist/manifest.schema.json"
   },
   "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "astro": "^7.4.9",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "ts-json-schema-generator": "^2.9.0"
+  },
+  "peerDependencies": {
+    "astro": ">=5",
+    "react": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "astro": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   }
 }
