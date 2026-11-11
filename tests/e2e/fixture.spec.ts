@@ -1,5 +1,6 @@
 // Covers the fixture pages in every engine: the built element modules load
-// without errors, and axe finds no WCAG 2.2 AA violations.
+// without errors, every file a page requests exists, and axe finds no WCAG 2.2
+// AA violations.
 //
 // Not covered here: element behaviour, which each element's own spec file
 // covers.
@@ -30,5 +31,24 @@ for (const path of ['', 'image.html', 'image-cdn.html']) {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
     expect(violations.map((v) => `${v.id}: ${v.help}`), 'axe violations').toEqual([]);
+  });
+}
+
+// image.html's missing.jpg is broken on purpose, to test the broken-image path.
+for (const path of ['', 'image.html', 'image-dev.html', 'image-cdn.html', 'layout.html']) {
+  test(`/examples/html/${path} requests no file that does not exist`, async ({ page }) => {
+    const missing: string[] = [];
+    page.on('response', (response) => {
+      if (response.status() >= 400 && !response.url().endsWith('/missing.jpg')) missing.push(`${response.status()} ${response.url()}`);
+    });
+    await page.goto(`/examples/html/${path}`);
+    await page.evaluate(async () => {
+      for (let y = 0; y < document.documentElement.scrollHeight; y += innerHeight / 2) {
+        scrollTo(0, y);
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+    });
+    await page.waitForLoadState('networkidle');
+    expect(missing, 'requests that failed').toEqual([]);
   });
 }

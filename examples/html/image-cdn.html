@@ -9,7 +9,8 @@
       import { configure, defineLoader } from '/packages/elements/dist/index.js';
 
       // Stands in for a CDN: the fixture media has a JPEG at each width the
-      // loader asks for.
+      // loader asks for, because hero (2400×1350, 16:9) and logo (400×400)
+      // need no width snapping.
       const local = defineLoader((src, { width }) => `media/${src}-${width}.jpg`);
       configure({ loader: local });
       setTimeout(() => configure({ loaders: { late: local } }), 300);
@@ -20,24 +21,24 @@
       <h1>medkit-image without a build step</h1>
       <medkit-image
         id="client"
-        src="gallery-2"
-        width="1200"
-        height="800"
-        alt="A rust gradient into teal"
+        src="hero"
+        width="2400"
+        height="1350"
+        alt="An orange gradient over dark blue"
         placeholder="color"
-        color="#7c2d12"
-        style="display: block; aspect-ratio: 1200 / 800"
+        color="#1d2433"
+        style="display: block; aspect-ratio: 2400 / 1350"
       ></medkit-image>
       <medkit-image
         id="late"
         loader="late"
-        src="gallery-3"
-        width="1200"
-        height="800"
-        alt="A green gradient into blue"
+        src="logo"
+        width="400"
+        height="400"
+        alt="A transparent logo"
         placeholder="color"
-        color="#4d7c0f"
-        style="display: block; aspect-ratio: 1200 / 800"
+        color="#ffffff"
+        style="display: block; width: 200px; aspect-ratio: 1 / 1"
       ></medkit-image>
     </main>
   </body>

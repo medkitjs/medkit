@@ -76,7 +76,7 @@ test.describe('without JavaScript', () => {
 
 test('with no build step, the element renders its own image through the configured loader, even one configured late', async ({ page }) => {
   await page.goto('/examples/html/image-cdn.html');
-  for (const [id, alt] of [['client', 'A rust gradient into teal'], ['late', 'A green gradient into blue']]) {
+  for (const [id, alt] of [['client', 'An orange gradient over dark blue'], ['late', 'A transparent logo']]) {
     const img = page.locator(`#${id} img`);
     await expect(img, `#${id} rendered no image`).toHaveAttribute('alt', alt);
     await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.naturalWidth), `#${id} did not load`).toBeGreaterThan(0);

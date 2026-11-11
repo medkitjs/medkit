@@ -2,6 +2,10 @@
 // drawn here, processed by the built @medkitjs/core into examples/html/media/,
 // then rendered with renderImage() into examples/html/layout.html. Both are
 // git-ignored. Run `pnpm build` first.
+//
+// The media folder is emptied first, so a local run sees exactly the files a
+// fresh CI checkout gets; a file left from an older pipeline once let a page
+// pass locally while it 404'd in CI.
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -21,6 +25,7 @@ function gradient(width: number, height: number, from: string, to: string) {
 }
 
 export default async function setup() {
+  await rm(MEDIA, { recursive: true, force: true });
   const src = await mkdtemp(join(tmpdir(), 'medkit-fixture-'));
   try {
     const sources: [string, Sharp][] = [
