@@ -1,14 +1,33 @@
 {
   "name": "@medkitjs/vite",
   "version": "0.0.0",
-  "description": "Vite plugin for processing media with medkit",
+  "private": true,
+  "description": "Vite plugin for medkit: import media as processed manifests, cached in dev; covers Astro too",
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "astro",
+    "image-processing",
+    "responsive-images",
+    "avif",
+    "webp"
+  ],
   "license": "MIT",
-  "type": "module",
+  "author": "koyev",
+  "homepage": "https://github.com/medkitjs/medkit/tree/main/packages/vite#readme",
+  "bugs": {
+    "url": "https://github.com/medkitjs/medkit/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/medkitjs/medkit.git",
     "directory": "packages/vite"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

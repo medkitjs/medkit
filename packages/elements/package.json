@@ -1,14 +1,37 @@
 {
   "name": "@medkitjs/elements",
   "version": "0.0.0",
-  "description": "Accessible, dependency-free media custom elements and SSR helpers",
+  "private": true,
+  "description": "Accessible, dependency-free media custom elements and SSR helpers for images, background video and playback",
+  "keywords": [
+    "custom-elements",
+    "web-components",
+    "responsive-images",
+    "picture",
+    "srcset",
+    "avif",
+    "webp",
+    "lazy-loading",
+    "accessibility",
+    "ssr",
+    "cdn"
+  ],
   "license": "MIT",
-  "type": "module",
+  "author": "koyev",
+  "homepage": "https://github.com/medkitjs/medkit/tree/main/packages/elements#readme",
+  "bugs": {
+    "url": "https://github.com/medkitjs/medkit/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/medkitjs/medkit.git",
     "directory": "packages/elements"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
