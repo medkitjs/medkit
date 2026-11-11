@@ -1,6 +1,12 @@
-/** Escapes a value for a double-quoted HTML attribute. */
+const ENTITIES: Record<string, string> = { '&': '&amp;', '"': '&quot;', "'": '&#x27;', '<': '&lt;', '>': '&gt;' };
+
+/**
+ * Escapes a value for a double-quoted HTML attribute. Only `&` and `"` are
+ * required there; `'`, `<` and `>` are escaped too because React escapes
+ * them, and the React components must render byte-identical markup.
+ */
 export function escapeAttr(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  return value.replace(/[&"'<>]/g, (c) => ENTITIES[c]);
 }
 
 /** An opening tag; `undefined` attributes are left out, every other value is escaped. */
