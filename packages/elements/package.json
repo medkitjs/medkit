@@ -1,0 +1,40 @@
+{
+  "name": "@medkitjs/elements",
+  "version": "0.0.0",
+  "description": "Accessible, dependency-free media custom elements and SSR helpers",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/medkitjs/medkit.git",
+    "directory": "packages/elements"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./image": {
+      "types": "./dist/image.d.ts",
+      "default": "./dist/image.js"
+    },
+    "./video-bg": {
+      "types": "./dist/video-bg.d.ts",
+      "default": "./dist/video-bg.js"
+    },
+    "./player": {
+      "types": "./dist/player.d.ts",
+      "default": "./dist/player.js"
+    },
+    "./manifest.schema.json": "./dist/manifest.schema.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b && ts-json-schema-generator --path src/manifest.ts --type Manifest --out dist/manifest.schema.json"
+  },
+  "devDependencies": {
+    "ts-json-schema-generator": "^2.9.0"
+  }
+}
