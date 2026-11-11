@@ -53,6 +53,8 @@ jobs:
           node-version: 24
           check-latest: true
           cache: pnpm
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}

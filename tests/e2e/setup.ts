@@ -1,17 +1,20 @@
 // Generates the fixture media before any browser test runs: source images
-// drawn here, processed by the built @medkitjs/core into examples/html/media/,
-// then rendered with renderImage() into examples/html/layout.html. Both are
-// git-ignored. Run `pnpm build` first.
+// drawn here and source videos generated with ffmpeg, processed by the built
+// @medkitjs/core into examples/html/media/, then images rendered with
+// renderImage() into examples/html/layout.html. Both are git-ignored. Run
+// `pnpm build` first; needs ffmpeg on PATH.
 //
 // The media folder is emptied first, so a local run sees exactly the files a
 // fresh CI checkout gets; a file left from an older pipeline once let a page
 // pass locally while it 404'd in CI.
 
+import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import sharp, { type Sharp } from 'sharp';
-import { processImage } from '@medkitjs/core';
+import { processImage, processVideo } from '@medkitjs/core';
 import { preloadTags, renderImage, type ImageManifest } from '@medkitjs/elements';
 
 export const MEDIA = resolve(import.meta.dirname, '../../examples/html/media');
@@ -39,6 +42,20 @@ export default async function setup() {
     await Promise.all(sources.map(([name, image]) => image.toFile(join(src, name))));
     const manifests = await Promise.all(sources.map(([name]) => processImage(join(src, name), { outDir: MEDIA })));
     await writeLayoutPage(Object.fromEntries(manifests.map((m) => [m.id, m])));
+
+    // testsrc2 changes every frame and has no all-black frame, so a black
+    // frame on screen can only come from the element, never from the clip.
+    const clip = (name: string, audio: boolean) =>
+      promisify(execFile)('ffmpeg', [
+        '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=30',
+        ...(audio ? ['-f', 'lavfi', '-i', 'sine=frequency=440'] : []),
+        '-t', '6', '-pix_fmt', 'yuv420p', join(src, name),
+      ]);
+    await Promise.all([clip('bg.mp4', false), clip('talk.mp4', true)]);
+    await Promise.all([
+      processVideo(join(src, 'bg.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
+      processVideo(join(src, 'talk.mp4'), { outDir: MEDIA, ladder: [480, 720], keepAudio: true }),
+    ]);
   } finally {
     await rm(src, { recursive: true, force: true });
   }

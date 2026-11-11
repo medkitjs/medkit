@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>medkit-video-bg behaviour</title>
+    <script type="module" src="/packages/elements/dist/video-bg.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>medkit-video-bg behaviour</h1>
+      <medkit-video-bg id="bg" controls="pause" style="display: block; position: relative; overflow: hidden; height: 360px">
+      <medkit-clip src="bg" title="Test pattern" duration="6" sources="[{&quot;src&quot;: &quot;media/bg-480p.mp4&quot;, &quot;width&quot;: 854, &quot;height&quot;: 480, &quot;codec&quot;: &quot;avc1.64001f&quot;}, {&quot;src&quot;: &quot;media/bg-720p.mp4&quot;, &quot;width&quot;: 1280, &quot;height&quot;: 720, &quot;codec&quot;: &quot;avc1.64001f&quot;}]" style="display: block; position: absolute; inset: 0">
+        <picture style="display: block; position: absolute; inset: 0; background: #555">
+          <img src="media/bg-poster-1280.jpg" alt="" width="1280" height="720" style="display: block; width: 100%; height: 100%; object-fit: cover" />
+        </picture>
+        <div style="position: relative; padding: 16px"><h2 style="margin: 0; color: #fff; background: #000">Summer on the river</h2></div>
+      </medkit-clip>
+      </medkit-video-bg>
+      <div style="height: 150vh"><p>Spacer, so the next background starts far below the fold.</p></div>
+      <medkit-video-bg id="talk" controls="pause sound" style="display: block; position: relative; overflow: hidden; height: 360px">
+      <medkit-clip src="talk" title="Test pattern with a tone" duration="6" audio sources="[{&quot;src&quot;: &quot;media/talk-480p.mp4&quot;, &quot;width&quot;: 854, &quot;height&quot;: 480, &quot;codec&quot;: &quot;avc1.64001f&quot;}, {&quot;src&quot;: &quot;media/talk-720p.mp4&quot;, &quot;width&quot;: 1280, &quot;height&quot;: 720, &quot;codec&quot;: &quot;avc1.64001f&quot;}]" style="display: block; position: absolute; inset: 0">
+        <picture style="display: block; position: absolute; inset: 0; background: #555">
+          <img src="media/talk-poster-1280.jpg" alt="" width="1280" height="720" style="display: block; width: 100%; height: 100%; object-fit: cover" />
+        </picture>
+      </medkit-clip>
+      </medkit-video-bg>
+    </main>
+  </body>
+</html>
