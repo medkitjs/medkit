@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>medkit-video-bg playlist</title>
+    <script type="module" src="/packages/elements/dist/video-bg.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>medkit-video-bg playlist</h1>
+      <medkit-video-bg id="list" controls="nav" style="display: block; position: relative; overflow: hidden; height: 360px">
+      <medkit-clip src="bg" title="Test pattern" duration="6" sources="[{&quot;src&quot;: &quot;media/bg-480p.mp4&quot;, &quot;width&quot;: 854, &quot;height&quot;: 480, &quot;codec&quot;: &quot;avc1.64001f&quot;}, {&quot;src&quot;: &quot;media/bg-720p.mp4&quot;, &quot;width&quot;: 1280, &quot;height&quot;: 720, &quot;codec&quot;: &quot;avc1.64001f&quot;}]" style="display: block; position: absolute; inset: 0">
+        <picture style="display: block; position: absolute; inset: 0; background: #555">
+          <img src="media/bg-poster-1280.jpg" alt="" width="1280" height="720" loading="lazy" style="display: block; width: 100%; height: 100%; object-fit: cover" />
+        </picture>
+        <div style="position: relative; padding: 16px"><h2 style="margin: 0 0 8px; color: #fff; background: #000">Test pattern</h2><a href="#bg" style="color: #fff; background: #000">About Test pattern</a></div>
+      </medkit-clip>
+      <medkit-clip src="talk" title="Test pattern with a tone" duration="6" audio hidden sources="[{&quot;src&quot;: &quot;media/talk-480p.mp4&quot;, &quot;width&quot;: 854, &quot;height&quot;: 480, &quot;codec&quot;: &quot;avc1.64001f&quot;}, {&quot;src&quot;: &quot;media/talk-720p.mp4&quot;, &quot;width&quot;: 1280, &quot;height&quot;: 720, &quot;codec&quot;: &quot;avc1.64001f&quot;}]" style="display: block; position: absolute; inset: 0">
+        <picture style="display: block; position: absolute; inset: 0; background: #555">
+          <img src="media/talk-poster-1280.jpg" alt="" width="1280" height="720" loading="lazy" style="display: block; width: 100%; height: 100%; object-fit: cover" />
+        </picture>
+        <div style="position: relative; padding: 16px"><h2 style="margin: 0 0 8px; color: #fff; background: #000">Test pattern with a tone</h2><a href="#talk" style="color: #fff; background: #000">About Test pattern with a tone</a></div>
+      </medkit-clip>
+      <medkit-clip src="short-a" title="Short clip A" duration="2.5" hidden sources="[{&quot;src&quot;: &quot;media/short-a-480p.mp4&quot;, &quot;width&quot;: 854, &quot;height&quot;: 480, &quot;codec&quot;: &quot;avc1.64001f&quot;}, {&quot;src&quot;: &quot;media/short-a-720p.mp4&quot;, &quot;width&quot;: 1280, &quot;height&quot;: 720, &quot;codec&quot;: &quot;avc1.64001f&quot;}]" style="display: block; position: absolute; inset: 0">
+        <picture style="display: block; position: absolute; inset: 0; background: #555">
+          <img src="media/short-a-poster-1280.jpg" alt="" width="1280" height="720" loading="lazy" style="display: block; width: 100%; height: 100%; object-fit: cover" />
+        </picture>
+        <div style="position: relative; padding: 16px"><h2 style="margin: 0 0 8px; color: #fff; background: #000">Short clip A</h2><a href="#short-a" style="color: #fff; background: #000">About Short clip A</a></div>
+      </medkit-clip>
+      </medkit-video-bg>
+      <medkit-video-bg id="auto" controls="nav" autoadvance style="display: block; position: relative; overflow: hidden; height: 360px">
+      <medkit-clip src="short-a" title="Short clip A" duration="2.5" sources="[{&quot;src&quot;: &quot;media/short-a-480p.mp4&quot;, &quot;width&quot;: 854, &quot;height&quot;: 480, &quot;codec&quot;: &quot;avc1.64001f&quot;}, {&quot;src&quot;: &quot;media/short-a-720p.mp4&quot;, &quot;width&quot;: 1280, &quot;height&quot;: 720, &quot;codec&quot;: &quot;avc1.64001f&quot;}]" style="display: block; position: absolute; inset: 0">
+        <picture style="display: block; position: absolute; inset: 0; background: #555">
+          <img src="media/short-a-poster-1280.jpg" alt="" width="1280" height="720" loading="lazy" style="display: block; width: 100%; height: 100%; object-fit: cover" />
+        </picture>
+        <div style="position: relative; padding: 16px"><h2 style="margin: 0 0 8px; color: #fff; background: #000">Short clip A</h2><a href="#short-a" style="color: #fff; background: #000">About Short clip A</a></div>
+      </medkit-clip>
+      <medkit-clip src="short-b" title="Short clip B" duration="2.5" hidden sources="[{&quot;src&quot;: &quot;media/short-b-480p.mp4&quot;, &quot;width&quot;: 854, &quot;height&quot;: 480, &quot;codec&quot;: &quot;avc1.64001f&quot;}, {&quot;src&quot;: &quot;media/short-b-720p.mp4&quot;, &quot;width&quot;: 1280, &quot;height&quot;: 720, &quot;codec&quot;: &quot;avc1.64001f&quot;}]" style="display: block; position: absolute; inset: 0">
+        <picture style="display: block; position: absolute; inset: 0; background: #555">
+          <img src="media/short-b-poster-1280.jpg" alt="" width="1280" height="720" loading="lazy" style="display: block; width: 100%; height: 100%; object-fit: cover" />
+        </picture>
+        <div style="position: relative; padding: 16px"><h2 style="margin: 0 0 8px; color: #fff; background: #000">Short clip B</h2><a href="#short-b" style="color: #fff; background: #000">About Short clip B</a></div>
+      </medkit-clip>
+      </medkit-video-bg>
+    </main>
+  </body>
+</html>

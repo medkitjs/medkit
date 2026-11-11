@@ -45,16 +45,19 @@ export default async function setup() {
 
     // testsrc2 changes every frame and has no all-black frame, so a black
     // frame on screen can only come from the element, never from the clip.
-    const clip = (name: string, audio: boolean) =>
+    const clip = (name: string, audio: boolean, seconds = 6) =>
       promisify(execFile)('ffmpeg', [
         '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=30',
         ...(audio ? ['-f', 'lavfi', '-i', 'sine=frequency=440'] : []),
-        '-t', '6', '-pix_fmt', 'yuv420p', join(src, name),
+        '-t', String(seconds), '-pix_fmt', 'yuv420p', join(src, name),
       ]);
-    await Promise.all([clip('bg.mp4', false), clip('talk.mp4', true)]);
+    // short-a and short-b are under 5 seconds, so auto-advance tests run quickly.
+    await Promise.all([clip('bg.mp4', false), clip('talk.mp4', true), clip('short-a.mp4', false, 2.5), clip('short-b.mp4', false, 2.5)]);
     await Promise.all([
       processVideo(join(src, 'bg.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
       processVideo(join(src, 'talk.mp4'), { outDir: MEDIA, ladder: [480, 720], keepAudio: true }),
+      processVideo(join(src, 'short-a.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
+      processVideo(join(src, 'short-b.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
     ]);
   } finally {
     await rm(src, { recursive: true, force: true });

@@ -8,6 +8,10 @@ export const strings = {
   pause: 'Pause background video',
   soundOn: 'Turn sound on',
   soundOff: 'Turn sound off',
+  prev: 'Previous video',
+  next: 'Next video',
+  position: '{current} / {total}',
+  announce: '{title}, {current} of {total}',
 };
 
 /** A label with its {placeholders} filled in. */
