@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>medkit-image without a build step</title>
+    <script type="module">
+      import '/packages/elements/dist/image.js';
+      import { configure, defineLoader } from '/packages/elements/dist/index.js';
+
+      // Stands in for a CDN: the fixture media has a JPEG at each width the
+      // loader asks for.
+      const local = defineLoader((src, { width }) => `media/${src}-${width}.jpg`);
+      configure({ loader: local });
+      setTimeout(() => configure({ loaders: { late: local } }), 300);
+    </script>
+  </head>
+  <body>
+    <main>
+      <h1>medkit-image without a build step</h1>
+      <medkit-image
+        id="client"
+        src="gallery-2"
+        width="1200"
+        height="800"
+        alt="A rust gradient into teal"
+        placeholder="color"
+        color="#7c2d12"
+        style="display: block; aspect-ratio: 1200 / 800"
+      ></medkit-image>
+      <medkit-image
+        id="late"
+        loader="late"
+        src="gallery-3"
+        width="1200"
+        height="800"
+        alt="A green gradient into blue"
+        placeholder="color"
+        color="#4d7c0f"
+        style="display: block; aspect-ratio: 1200 / 800"
+      ></medkit-image>
+    </main>
+  </body>
+</html>

@@ -23,7 +23,7 @@ test('the fixture page loads every element module without an error', async ({ pa
 });
 
 // image-dev.html is left out: its images are broken on purpose.
-for (const path of ['', 'image.html']) {
+for (const path of ['', 'image.html', 'image-cdn.html']) {
   test(`/examples/html/${path} has no WCAG 2.2 AA violations`, async ({ page }) => {
     await page.goto(`/examples/html/${path}`);
     const { violations } = await new AxeBuilder({ page })

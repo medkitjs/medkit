@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import schema from '../../elements/dist/manifest.schema.json' with { type: 'json' };
-import { pickWidths, processImage } from '../src/index.js';
+import { processImage } from '../src/index.js';
 
 const validate = new Ajv({ allErrors: true }).compile(schema);
 
@@ -36,25 +36,6 @@ async function noise(width: number, height: number, path: string) {
   for (let i = 0; i < data.length; i++) data[i] = Math.floor(Math.random() * 256);
   await sharp(data, { raw: { width, height, channels: 3 } }).png().toFile(path);
 }
-
-describe('widths', () => {
-  test('only widths up to the original are kept', () => {
-    expect(pickWidths([320, 640, 960, 1280, 1920, 2560], 1000)).toEqual([320, 640, 960]);
-  });
-
-  test('the original width is added when it is at least 15% wider than the largest kept', () => {
-    expect(pickWidths([320, 640, 960, 1280, 1920, 2560], 1600), '1600 is 25% over 1280').toEqual([320, 640, 960, 1280, 1600]);
-    expect(pickWidths([320, 640, 960, 1280, 1920, 2560], 1400), '1400 is 9% over 1280').toEqual([320, 640, 960, 1280]);
-  });
-
-  test('a source wider than every configured width is capped at the largest', () => {
-    expect(pickWidths([320, 640, 960, 1280, 1920, 2560], 6000)).toEqual([320, 640, 960, 1280, 1920, 2560]);
-  });
-
-  test('a source narrower than every configured width keeps its own width', () => {
-    expect(pickWidths([320, 640], 200)).toEqual([200]);
-  });
-});
 
 describe('processImage', () => {
   test('writes AVIF, WebP and JPEG at every width and a manifest that passes the schema', async () => {

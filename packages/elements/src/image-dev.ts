@@ -9,9 +9,17 @@ const warn = (message: string, element: Element) => console.warn(`<medkit-image>
 
 class MedkitImageDev extends MedkitImage {
   override connectedCallback() {
+    const clientRendered = !this.querySelector('img') && this.hasAttribute('src');
+    if (clientRendered && !this.getBoundingClientRect().height) {
+      warn('renders on the client with no box reserved, so the page shifts; add style="aspect-ratio: <width> / <height>"', this);
+    }
+    if (clientRendered && !this.hasAttribute('alt')) warn('has no alt; write alt="" if the image is decorative', this);
     super.connectedCallback();
     const img = this.querySelector('img');
-    if (!img) return warn('has no <img> inside; render it with renderImage()', this);
+    if (!img) {
+      if (!clientRendered) warn('has no <img> inside and no src; render it with renderImage()', this);
+      return;
+    }
     if (!img.hasAttribute('alt')) warn('has no alt; write alt="" if the image is decorative', this);
     if (!img.getAttribute('width') || !img.getAttribute('height')) {
       warn('has no width or height on its <img>, so the page shifts when it loads', this);

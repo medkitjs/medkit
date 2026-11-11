@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import sharp, { type Sharp } from 'sharp';
-import type { ImageManifest, Rendition } from '@medkitjs/elements';
+import { DEFAULT_WIDTHS, pickWidths, type ImageManifest, type Rendition } from '@medkitjs/elements';
 
 export interface ImageOptions {
   /** Where files and the manifest are written. Default `public/media`. */
@@ -14,8 +14,6 @@ export interface ImageOptions {
   /** What transparency is flattened onto in the JPEG fallback. Default `#ffffff`. */
   background?: string;
 }
-
-export const DEFAULT_WIDTHS = [320, 640, 960, 1280, 1920, 2560];
 
 // Bump whenever the same input and options would produce different files, so
 // every cached manifest is invalidated.
@@ -98,20 +96,6 @@ export async function processImage(input: string, options: ImageOptions = {}): P
   // Written last, so a manifest on disk always means every file it lists was written.
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   return manifest;
-}
-
-/**
- * Widths no larger than the original. The original's own width is added when
- * it falls between two configured widths and is at least 15% wider than the
- * largest one kept, so a 1600px source is not capped at 1280. A source wider
- * than every configured width is capped at the largest.
- */
-export function pickWidths(widths: number[], original: number): number[] {
-  const kept = [...new Set(widths)].filter((w) => w <= original).sort((a, b) => a - b);
-  const largest = kept.at(-1);
-  if (largest === undefined) return [original];
-  if (original < Math.max(...widths) && original >= largest * 1.15) kept.push(original);
-  return kept;
 }
 
 async function makePlaceholder(pixels: () => Sharp): Promise<string | undefined> {

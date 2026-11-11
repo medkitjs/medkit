@@ -1,6 +1,7 @@
 // Covers <medkit-image> in every engine: the fade over the placeholder, which
 // images are never hidden (priority, reduced motion, broken), the page without
-// JavaScript, and each development warning.
+// JavaScript, rendering from a CDN loader with no build step, and each
+// development warning.
 //
 // Not covered here: layout shift and the markup renderImage() writes, which
 // layout.spec.ts and the SSR unit tests cover.
@@ -71,6 +72,15 @@ test.describe('without JavaScript', () => {
     expect(await hero.evaluate((img: HTMLImageElement) => img.naturalWidth), 'the hero did not load').toBeGreaterThan(0);
     await expect(hero).toBeVisible();
   });
+});
+
+test('with no build step, the element renders its own image through the configured loader, even one configured late', async ({ page }) => {
+  await page.goto('/examples/html/image-cdn.html');
+  for (const [id, alt] of [['client', 'A rust gradient into teal'], ['late', 'A green gradient into blue']]) {
+    const img = page.locator(`#${id} img`);
+    await expect(img, `#${id} rendered no image`).toHaveAttribute('alt', alt);
+    await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.naturalWidth), `#${id} did not load`).toBeGreaterThan(0);
+  }
 });
 
 test('the development build warns about each mistake on the page', async ({ page }) => {
