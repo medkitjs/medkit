@@ -1,6 +1,7 @@
 // Covers processImage with real sharp runs on images generated here: which
-// widths and formats are written, metadata stripping, the blur placeholder and
-// its fallbacks, dominant colour, JPEG flattening and the hash cache. Every
+// widths and formats are written, exact aspect ratios, metadata stripping, the
+// blur placeholder and its fallbacks, dominant colour, JPEG flattening, the
+// hash cache and orphan cleanup. Every
 // manifest is checked against the generated schema in elements' dist/, so run
 // `pnpm build` first.
 //
@@ -8,7 +9,7 @@
 // judge, and the CLI's handling of many files, which the CLI tests cover.
 
 import { Ajv } from 'ajv';
-import { mkdtemp, rm, stat, unlink } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -173,6 +174,37 @@ describe('processImage', () => {
     await unlink(join(dir, recoloured.webp[0].src));
     await processImage(input, { outDir: dir, background: '#000000' });
     await expect(stat(join(dir, recoloured.webp[0].src)), 'the deleted WebP was not rewritten').resolves.toBeDefined();
+  });
+
+  test('rewriting a manifest deletes the files only the old one listed, and nothing else', async () => {
+    const input = join(dir, 'hero.png');
+    await solid(1000, 500, { r: 10, g: 20, b: 30, alpha: 1 }).png().toFile(input);
+    const out = join(dir, 'out');
+    const old = await processImage(input, { outDir: out, widths: [320, 640, 960] });
+    await writeFile(join(out, 'hero-unlisted.avif'), 'not in any manifest');
+
+    const now = await processImage(input, { outDir: out, widths: [320, 640] });
+
+    expect(await readdir(out).then((f) => f.sort())).toEqual(
+      ['hero-unlisted.avif', 'hero.json', ...[...now.avif, ...now.webp, ...now.jpeg].map((r) => r.src)].sort(),
+    );
+    expect(old.avif.map((r) => r.src), 'the old manifest did list the 960 files').toContain('hero-960.avif');
+  });
+
+  test('a tampered manifest listing a path outside outDir deletes nothing there', async () => {
+    const input = join(dir, 'hero.png');
+    await solid(400, 200, { r: 10, g: 20, b: 30, alpha: 1 }).png().toFile(input);
+    const out = join(dir, 'out');
+    await processImage(input, { outDir: out });
+    await writeFile(join(dir, 'precious.txt'), 'keep me');
+    const manifest = JSON.parse(await readFile(join(out, 'hero.json'), 'utf8'));
+    manifest.hash = 'stale';
+    manifest.avif.push({ src: '../precious.txt', width: 1, height: 1, bytes: 1 });
+    await writeFile(join(out, 'hero.json'), JSON.stringify(manifest));
+
+    await processImage(input, { outDir: out });
+
+    await expect(stat(join(dir, 'precious.txt')), 'a file outside outDir was deleted').resolves.toBeDefined();
   });
 
   test('a file name that is not a safe id is refused before anything is written', async () => {

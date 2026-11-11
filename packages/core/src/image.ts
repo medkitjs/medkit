@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import sharp, { type Sharp } from 'sharp';
 import { DEFAULT_WIDTHS, pickWidths, type ImageManifest, type Rendition } from '@medkitjs/elements';
@@ -41,8 +41,8 @@ export async function processImage(input: string, options: ImageOptions = {}): P
     .digest('hex');
 
   const manifestPath = join(outDir, `${id}.json`);
-  const cached = await readCached(manifestPath, outDir, hash);
-  if (cached) return cached;
+  const previous = await readManifest(manifestPath);
+  if (previous?.hash === hash && (await allExist(previous, outDir))) return previous;
 
   // Decoding once to raw sRGB pixels applies EXIF orientation and leaves every
   // metadata block (EXIF, GPS, XMP, ICC) behind, because raw pixels carry none.
@@ -104,6 +104,12 @@ export async function processImage(input: string, options: ImageOptions = {}): P
   };
   // Written last, so a manifest on disk always means every file it lists was written.
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+
+  // Only files the old manifest listed are ever deleted, and only plain file
+  // names: a tampered manifest listing ../anything deletes nothing.
+  const keep = new Set(listed(manifest));
+  const orphans = listed(previous).filter((src) => !keep.has(src) && src === basename(src) && src !== '..');
+  await Promise.all(orphans.map((src) => rm(join(outDir, src), { force: true })));
   return manifest;
 }
 
@@ -154,16 +160,32 @@ async function makePlaceholder(pixels: () => Sharp): Promise<string | undefined>
   return undefined;
 }
 
-async function readCached(path: string, outDir: string, hash: string): Promise<ImageManifest | undefined> {
+/** The manifest already on disk, or nothing if it is missing, unreadable or another format version. */
+async function readManifest(path: string): Promise<ImageManifest | undefined> {
   try {
     const manifest = JSON.parse(await readFile(path, 'utf8')) as ImageManifest;
-    if (manifest.v !== 1 || manifest.hash !== hash) return undefined;
-    const files = [...manifest.avif, ...manifest.webp, ...manifest.jpeg].map((r) => join(outDir, r.src));
-    await Promise.all(files.map((f) => access(f)));
-    return manifest;
+    return manifest?.v === 1 ? manifest : undefined;
   } catch {
     return undefined;
   }
+}
+
+/** Every file name a manifest lists, skipping anything malformed. */
+function listed(manifest: ImageManifest | undefined): string[] {
+  if (!manifest) return [];
+  return [manifest.avif, manifest.webp, manifest.jpeg]
+    .flatMap((list) => (Array.isArray(list) ? list : []))
+    .map((r) => r?.src)
+    .filter((src): src is string => typeof src === 'string');
+}
+
+async function allExist(manifest: ImageManifest, outDir: string): Promise<boolean> {
+  const files = listed(manifest);
+  if (!files.length) return false;
+  return Promise.all(files.map((src) => access(join(outDir, src)))).then(
+    () => true,
+    () => false,
+  );
 }
 
 function hex({ r, g, b }: { r: number; g: number; b: number }): string {
