@@ -1,4 +1,4 @@
-import { fallback, imgStyle, srcset, tag } from './html.js';
+import { checkCss, fallback, imgStyle, srcset, tag } from './html.js';
 import { DEFAULT_WIDTHS, pickWidths } from './widths.js';
 
 /** Turns a source path, width and optional quality into a CDN URL. Without a quality, the CDN picks one. */
@@ -27,6 +27,7 @@ export function renderCdnPicture(src: string, options: CdnImageOptions): string 
   const { loader, alt, width, height, sizes = '100vw', priority, quality, color, fit = 'cover', position = 'center' } = options;
   if (typeof alt !== 'string') throw new Error(`medkit: image "${src}" needs alt; pass alt: '' if it is decorative`);
   if (!(width > 0 && height > 0)) throw new Error(`medkit: CDN image "${src}" needs its width and height`);
+  checkCss(fit, color);
 
   const candidates = cdnCandidates(src, options);
   const placeholder = options.placeholder ?? 'blur';

@@ -25,3 +25,15 @@ export function imgStyle(fit: string, position: string): string {
 export function fallback<T extends { width: number }>(candidates: T[]): T {
   return candidates.filter((c) => c.width <= 1280).at(-1) ?? candidates[0];
 }
+
+const FITS = ['cover', 'contain', 'fill', 'none', 'scale-down'];
+const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
+/**
+ * Checks the two values that land in CSS unquoted, so neither can carry a `;`
+ * and a second declaration into the style attribute.
+ */
+export function checkCss(fit: string, color: string | undefined): void {
+  if (!FITS.includes(fit)) throw new Error(`medkit: fit "${fit}" is not one of ${FITS.join(', ')}`);
+  if (color !== undefined && !HEX.test(color)) throw new Error(`medkit: color "${color}" is not a hex colour such as #1d2433`);
+}

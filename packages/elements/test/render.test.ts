@@ -116,6 +116,16 @@ describe('renderImage', () => {
     expect([sources[0].width, sources[0].height]).toEqual(['800', '1000']);
   });
 
+  test('a fit that is not an object-fit keyword, or a colour that is not hex, cannot add CSS to the style attribute', () => {
+    const fit = 'cover;position:fixed' as 'cover';
+    expect(() => renderImage(hero, { alt: 'x', fit }), 'fit').toThrow(/fit "cover;position:fixed" is not one of/);
+    expect(() => renderImage({ ...hero, color: 'red;position:fixed' }, { alt: 'x' }), 'manifest colour').toThrow(/not a hex colour/);
+    const loader = (src: string) => src;
+    expect(() => renderImage('a.jpg', { loader, alt: 'x', width: 1, height: 1, color: 'red' }), 'CDN colour').toThrow(/not a hex colour/);
+    expect(() => renderImage('a.jpg', { loader, alt: 'x', width: 1, height: 1, fit }), 'CDN fit').toThrow(/is not one of/);
+    expect(renderImage('a.jpg', { loader, alt: 'x', width: 1, height: 1, color: '#AbC' }), 'short hex in any case').toContain('#AbC');
+  });
+
   test('a manifest in a format version it does not know is refused rather than guessed at', () => {
     expect(() => renderImage({ ...hero, v: 2 } as unknown as ImageManifest, { alt: 'x' })).toThrow(/format version 2/);
   });

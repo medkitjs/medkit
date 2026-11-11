@@ -3,12 +3,13 @@
 //
 // Threat model: manifests and options are the developer's own build output and
 // code. Every value is still escaped for the attribute it lands in, so a quote
-// or ampersand in `alt`, `sizes` or a path cannot end the attribute. Values are
-// not validated against the schema here; the elements never validate manifests
-// at runtime.
+// or ampersand in `alt`, `sizes` or a path cannot end the attribute, and `fit`
+// and colours are checked, because they land in CSS unquoted. `position` is
+// not checked: it is the developer's own value, like a class name. Manifests
+// are not validated against the schema; the elements never do that at runtime.
 
 import { cdnCandidates, renderCdnPicture, type CdnImageOptions } from './cdn.js';
-import { fallback, imgStyle, srcset, tag } from './html.js';
+import { checkCss, fallback, imgStyle, srcset, tag } from './html.js';
 import type { ImageManifest, Rendition } from './manifest.js';
 
 export interface ArtSource {
@@ -53,6 +54,7 @@ export function renderPicture(source: ImageManifest | string, options: RenderIma
   const main = read(source);
   const { alt, sizes = '100vw', priority, fit = 'cover', position = 'center', baseUrl = '/media/', art = [] } = options as RenderImageOptions;
   if (typeof alt !== 'string') throw new Error(`medkit: image "${main.id}" needs alt; pass alt: '' if it is decorative`);
+  checkCss(fit, main.color);
   const placeholder = options.placeholder ?? 'blur';
 
   let background: string | undefined;
