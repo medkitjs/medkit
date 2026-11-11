@@ -9,7 +9,7 @@
 
 import { Ajv } from 'ajv';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -206,6 +206,20 @@ describe('processVideo', { timeout: 60_000 }, () => {
     const hls = await readdir(join(dir, 'talk'));
     expect(hls.filter((f) => f.startsWith('90p')), 'old variant files').toEqual([]);
     expect(hls).toContain('180p_000.m4s');
+  });
+
+  test('a tampered manifest whose id points outside outDir deletes nothing there', async () => {
+    const input = await clip('hero.mp4', { seconds: 2 });
+    const out = join(dir, 'out');
+    await processVideo(input, { outDir: out, ladder: [180] });
+    await writeFile(join(dir, 'master.m3u8'), 'keep me');
+    const manifest = JSON.parse(await readFile(join(out, 'hero.json'), 'utf8'));
+    Object.assign(manifest, { id: '..', hls: '../master.m3u8', hash: 'stale' });
+    await writeFile(join(out, 'hero.json'), JSON.stringify(manifest));
+
+    await processVideo(input, { outDir: out, ladder: [180] });
+
+    await expect(readFile(join(dir, 'master.m3u8'), 'utf8'), 'a file outside outDir was deleted').resolves.toBe('keep me');
   });
 });
 

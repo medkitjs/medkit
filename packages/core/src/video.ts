@@ -58,9 +58,9 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
 
   const manifestPath = join(outDir, `${id}.json`);
   const previous = await readManifest(manifestPath);
-  if (previous?.hash === digest && (await allExist(previous, outDir))) return previous;
+  if (previous?.hash === digest && (await allExist(previous, outDir, id))) return previous;
   // Read now: the new encode overwrites the playlists that list the old segments.
-  const old = await listed(previous, outDir);
+  const old = await listed(previous, outDir, id);
 
   await checkFfmpeg(['libx264', ...(av1 ? ['libsvtav1'] : [])]);
   const source = await probe(input);
@@ -160,7 +160,7 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
 
   // Only files the old manifest listed, directly or through its playlists, are
   // deleted, and only names medkit itself writes.
-  const keep = new Set(await listed(manifest, outDir));
+  const keep = new Set(await listed(manifest, outDir, id));
   const orphans = old.filter((f) => !keep.has(f));
   await Promise.all(orphans.map((f) => rm(join(outDir, f), { force: true })));
   return manifest;
@@ -215,13 +215,18 @@ async function readManifest(path: string): Promise<VideoManifest | undefined> {
   }
 }
 
-/** Every file a manifest lists, relative to outDir: its MP4s, and its HLS playlists and segments. */
-async function listed(manifest: VideoManifest | undefined, outDir: string): Promise<string[]> {
+/**
+ * Every file a manifest lists, relative to outDir: its MP4s, and its HLS
+ * playlists and segments. The HLS folder comes from `id`, the checked id being
+ * processed, never from the file: a tampered manifest with an id of ".." must
+ * not point cleanup outside outDir.
+ */
+async function listed(manifest: VideoManifest | undefined, outDir: string, id: string): Promise<string[]> {
   if (!manifest) return [];
   const plain = (name: unknown): name is string => typeof name === 'string' && name === basename(name) && name !== '..';
   const files = (Array.isArray(manifest.mp4) ? manifest.mp4 : []).map((r) => r?.src).filter(plain);
-  if (typeof manifest.hls === 'string' && manifest.hls === `${manifest.id}/master.m3u8`) {
-    const dir = manifest.id;
+  if (manifest.hls === `${id}/master.m3u8`) {
+    const dir = id;
     const uris = async (playlist: string) => {
       const text = await readFile(join(outDir, dir, playlist), 'utf8').catch(() => '');
       const map = [...text.matchAll(/#EXT-X-MAP:URI="([^"]+)"/g)].map((m) => m[1]);
@@ -234,8 +239,8 @@ async function listed(manifest: VideoManifest | undefined, outDir: string): Prom
   return files;
 }
 
-async function allExist(manifest: VideoManifest, outDir: string): Promise<boolean> {
-  const files = [...(await listed(manifest, outDir)), `${manifest.poster?.id}.json`];
+async function allExist(manifest: VideoManifest, outDir: string, id: string): Promise<boolean> {
+  const files = [...(await listed(manifest, outDir, id)), `${id}-poster.json`];
   return Promise.all(files.map((f) => access(join(outDir, f)))).then(
     () => true,
     () => false,
