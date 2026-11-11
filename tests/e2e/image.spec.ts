@@ -25,7 +25,7 @@ async function holdMedia(page: Page) {
 const opacity = (page: Page, id: string) =>
   page.locator(`#${id} img`).evaluate((img) => getComputedStyle(img).opacity);
 const background = (page: Page, id: string) =>
-  page.locator(`#${id}`).evaluate((el) => getComputedStyle(el).backgroundColor);
+  page.locator(`#${id} picture`).evaluate((el) => getComputedStyle(el).backgroundColor);
 
 test('a lazy image fades in over its placeholder, and the placeholder is gone once it has loaded', async ({ page }) => {
   const release = await holdMedia(page);

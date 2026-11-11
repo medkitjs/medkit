@@ -9,8 +9,8 @@
   <body>
     <main>
       <h1>medkit-image behaviour</h1>
-      <medkit-image id="hero" priority style="display: block; background: #1d2433">
-        <picture>
+      <medkit-image id="hero" priority>
+        <picture style="display: block; background: #1d2433">
           <img
             src="media/hero-1280.jpg"
             srcset="media/hero-640.jpg 640w, media/hero-1280.jpg 1280w"
@@ -25,14 +25,14 @@
           />
         </picture>
       </medkit-image>
-      <medkit-image id="broken" style="display: block; background: #334155">
-        <picture>
+      <medkit-image id="broken">
+        <picture style="display: block; background: #334155">
           <img src="media/missing.jpg" width="640" height="427" alt="A photo that is missing" style="display: block; width: 100%; height: auto" />
         </picture>
       </medkit-image>
       <div style="height: 150vh"></div>
-      <medkit-image id="lazy" style="display: block; background: #334155">
-        <picture>
+      <medkit-image id="lazy">
+        <picture style="display: block; background: #334155">
           <img
             src="media/gallery-1-640.jpg"
             width="1200"

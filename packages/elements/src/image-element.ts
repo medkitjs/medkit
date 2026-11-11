@@ -1,15 +1,18 @@
 /**
  * Enhances the `<picture>` that renderImage() put inside it. The image already
- * shows without this class; it only fades the image in over the placeholder and
- * removes the placeholder once the image has loaded, so it cannot show through
- * a transparent image.
+ * shows without this class; it only fades the image in over the placeholder,
+ * which is the `<picture>`'s background, and removes the placeholder once the
+ * image has loaded, so it cannot show through a transparent image.
+ *
+ * Only the `<picture>` and `<img>` are touched, never this element's own
+ * attributes, so a framework that rendered and hydrates it sees no mismatch.
  */
 export class MedkitImage extends HTMLElement {
   connectedCallback() {
     const img = this.querySelector('img');
     if (!img) return;
     const clear = () => {
-      this.style.background = 'none';
+      img.parentElement!.style.background = 'none';
     };
     if (img.complete && img.naturalWidth) return clear();
 

@@ -1,0 +1,9 @@
+---
+// <medkit-image> for Astro; renders exactly what renderImage() writes.
+import { renderImage, type ImageManifest, type RenderImageOptions } from '@medkitjs/elements';
+
+type Props = RenderImageOptions & { manifest: ImageManifest };
+const { manifest, ...options } = Astro.props;
+---
+
+<Fragment set:html={renderImage(manifest, options)} />

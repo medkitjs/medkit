@@ -31,15 +31,38 @@
       "types": "./dist/player.d.ts",
       "default": "./dist/player.js"
     },
-    "./manifest.schema.json": "./dist/manifest.schema.json"
+    "./manifest.schema.json": "./dist/manifest.schema.json",
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./astro": "./astro/Image.astro"
   },
   "files": [
-    "dist"
+    "dist",
+    "astro"
   ],
   "scripts": {
     "build": "tsc -b && ts-json-schema-generator --path src/manifest.ts --type Manifest --out dist/manifest.schema.json"
   },
   "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "astro": "^7.4.9",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "ts-json-schema-generator": "^2.9.0"
+  },
+  "peerDependencies": {
+    "astro": ">=5",
+    "react": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "astro": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   }
 }
