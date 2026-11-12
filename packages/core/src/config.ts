@@ -1,17 +1,17 @@
 import { access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { DEFAULT_LADDER, type VideoOptions } from './video.js';
+import { DEFAULT_LADDER, DEFAULT_MAXRATE, isMaxrateTable, type VideoOptions } from './video.js';
 
 /** Video settings that can differ per file; the rest are defaults for every video. */
-export type VideoFileOptions = Pick<VideoOptions, 'ladder' | 'av1' | 'hls' | 'keepAudio' | 'trim' | 'posterAt'>;
+export type VideoFileOptions = Pick<VideoOptions, 'ladder' | 'av1' | 'hls' | 'keepAudio' | 'maxrate' | 'trim' | 'posterAt'>;
 
 export interface MedkitConfig {
   /** Where processed files are written, resolved against the config's folder. Default `public/media`. */
   outDir: string;
   /** Where those files are served from, a path or a CDN URL, always ending in `/`. Default `/media/`. */
   baseUrl: string;
-  video: Required<Pick<VideoOptions, 'ladder' | 'av1' | 'hls' | 'keepAudio'>> & {
+  video: Required<Pick<VideoOptions, 'ladder' | 'av1' | 'hls' | 'keepAudio' | 'maxrate'>> & {
     /** Per-file options, keyed by the file's path relative to the source folder, with `/` separators. */
     files: Record<string, VideoFileOptions>;
   };
@@ -19,7 +19,7 @@ export interface MedkitConfig {
 
 export const CONFIG_FILE = 'medkit.config.js';
 
-const DEFAULTS = { ladder: DEFAULT_LADDER, av1: false, hls: false, keepAudio: false };
+const DEFAULTS = { ladder: DEFAULT_LADDER, av1: false, hls: false, keepAudio: false, maxrate: DEFAULT_MAXRATE };
 
 /**
  * Reads `medkit.config.js` from `dir`. A missing file means the defaults; a
@@ -45,7 +45,7 @@ export async function loadConfig(dir: string = process.cwd()): Promise<MedkitCon
     if (user[key] !== undefined && (typeof user[key] !== 'string' || user[key] === '')) fail(`"${key}" must be a non-empty string`);
   }
 
-  const video = object(user.video ?? {}, 'video', ['ladder', 'av1', 'hls', 'keepAudio', 'files'], fail);
+  const video = object(user.video ?? {}, 'video', ['ladder', 'av1', 'hls', 'keepAudio', 'maxrate', 'files'], fail);
   const defaults = { ...DEFAULTS, ...videoOptions(video, 'video', fail) } as MedkitConfig['video'];
   const files: Record<string, VideoFileOptions> = {};
   const listed = object(video.files ?? {}, 'video.files', null, fail);
@@ -55,7 +55,7 @@ export async function loadConfig(dir: string = process.cwd()): Promise<MedkitCon
       fail(`"video.files" key "${key}" must be a path inside the source folder, such as "hero.mp4"`);
     }
     const where = `video.files["${key}"]`;
-    const options = object(value, where, ['ladder', 'av1', 'hls', 'keepAudio', 'trim', 'posterAt'], fail);
+    const options = object(value, where, ['ladder', 'av1', 'hls', 'keepAudio', 'maxrate', 'trim', 'posterAt'], fail);
     files[file] = videoOptions(options, where, fail);
   }
 
@@ -100,6 +100,12 @@ function videoOptions(record: Record<string, unknown>, where: string, fail: (m: 
       fail(`"${where}.ladder" must list whole numbers of pixels, such as [480, 720, 1080]`);
     }
     out.ladder = ladder as number[];
+  }
+  if (record.maxrate !== undefined) {
+    if (record.maxrate !== false && !isMaxrateTable(record.maxrate)) {
+      fail(`"${where}.maxrate" must map ladder heights to whole kbps, such as { 480: 800, 720: 1600 }, or be false`);
+    }
+    out.maxrate = record.maxrate as VideoFileOptions['maxrate'];
   }
   if (record.posterAt !== undefined) out.posterAt = seconds(record.posterAt, 'posterAt');
   if (record.trim !== undefined) {

@@ -24,7 +24,7 @@ test('without a config file, media goes to public/media and is served from /medi
   expect(await loadConfig(dir)).toEqual({
     outDir: join(dir, 'public/media'),
     baseUrl: '/media/',
-    video: { ladder: [480, 720, 1080], av1: false, hls: false, keepAudio: false, files: {} },
+    video: { ladder: [480, 720, 1080], av1: false, hls: false, keepAudio: false, maxrate: { 480: 800, 720: 1600, 1080: 3000 }, files: {} },
   });
 });
 
@@ -60,10 +60,18 @@ test('per-file video options override the video defaults for that file only', as
     av1: true,
     hls: false,
     keepAudio: true,
+    maxrate: { 480: 800, 720: 1600, 1080: 3000 },
     trim: { start: 2, end: 12 },
     posterAt: 0,
   });
-  expect(videoOptionsFor(config, 'other.mp4')).toEqual({ ladder: [480, 720, 1080], av1: true, hls: false, keepAudio: false });
+  expect(videoOptionsFor(config, 'other.mp4')).toEqual({ ladder: [480, 720, 1080], av1: true, hls: false, keepAudio: false, maxrate: { 480: 800, 720: 1600, 1080: 3000 } });
+});
+
+test('maxrate replaces the default caps as a whole, or turns them off for one file', async () => {
+  await write(`export default { video: { maxrate: { 720: 1200 }, files: { 'loop.mp4': { maxrate: false } } } };`);
+  const config = await loadConfig(dir);
+  expect(videoOptionsFor(config, 'hero.mp4').maxrate).toEqual({ 720: 1200 });
+  expect(videoOptionsFor(config, 'loop.mp4').maxrate).toBe(false);
 });
 
 test('a Windows-style path in video.files matches the same file', async () => {
@@ -76,6 +84,9 @@ test.each([
   [`{ video: { files: { 'a.mp4': { trimm: {} } } } }`, /unknown option "trimm" in "video.files\["a.mp4"\]"/],
   [`{ video: { ladder: [480.5] } }`, /"video.ladder" must list whole numbers/],
   [`{ video: { av1: 'yes' } }`, /"video.av1" must be true or false/],
+  [`{ video: { maxrate: { 720: 1.5 } } }`, /"video.maxrate" must map ladder heights to whole kbps/],
+  [`{ video: { maxrate: {} } }`, /"video.maxrate" must map ladder heights to whole kbps/],
+  [`{ video: { maxrate: true } }`, /"video.maxrate" must map ladder heights to whole kbps/],
   [`{ video: { files: { 'a.mp4': { trim: { start: 5, end: 2 } } } } }`, /needs start < end/],
   [`{ video: { files: { 'a.mp4': { posterAt: -1 } } } }`, /posterAt" must be a number of seconds/],
   [`{ video: { files: { '../outside.mp4': {} } } }`, /must be a path inside the source folder/],

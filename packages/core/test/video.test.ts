@@ -1,7 +1,7 @@
 // Covers processVideo with real ffmpeg runs on short clips generated here: the
 // H.264 ladder, optional AV1, keyframes, faststart, audio and metadata
 // stripping, codec strings, trim and posterAt, the poster, HLS packaging, the
-// cache and orphan cleanup. Needs ffmpeg 6+ with libx264 and libsvtav1 on
+// cache, orphan cleanup, and the bitrate cap per rung. Needs ffmpeg 6+ with libx264 and libsvtav1 on
 // PATH, and `pnpm build` (manifests are checked against the built schema).
 //
 // Not covered: visual quality, which no assertion here can judge, and large
@@ -17,7 +17,7 @@ import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import schema from '../../elements/dist/manifest.schema.json' with { type: 'json' };
 import { checkFfmpeg } from '../src/ffmpeg.js';
-import { processVideo } from '../src/video.js';
+import { maxrateFor, processVideo } from '../src/video.js';
 
 const run = promisify(execFile);
 const validate = new Ajv({ allErrors: true }).compile(schema);
@@ -62,7 +62,28 @@ async function thumb(source: string, at = 0) {
 
 const difference = (a: Buffer, b: Buffer) => a.reduce((sum, v, i) => sum + Math.abs(v - b[i]), 0) / a.length;
 
+test('a rung missing from the maxrate table gets a cap between its neighbours, or scaled from the nearest', () => {
+  const table = { 480: 800, 720: 1600, 1080: 3000 };
+  expect(maxrateFor(720, table), 'a listed rung').toBe(1600);
+  expect(maxrateFor(600, table), 'halfway between 480 and 720').toBe(1200);
+  expect(maxrateFor(240, table), 'below the smallest').toBe(400);
+  expect(maxrateFor(2160, table), 'above the largest').toBe(6000);
+});
+
 describe('processVideo', { timeout: 60_000 }, () => {
+  test("maxrate holds each rung's average bitrate under its cap, AV1 included, and false lifts it", async () => {
+    const input = await clip('hero.mp4');
+    const kbps = (r: { bytes: number }, duration: number) => (r.bytes * 8) / duration / 1000;
+
+    const capped = await processVideo(input, { outDir: dir, ladder: [180], av1: true, maxrate: { 180: 120 } });
+    const free = await processVideo(input, { outDir: join(dir, 'free'), ladder: [180], maxrate: false });
+
+    // The VBV buffer starts full, so a clip may overshoot the cap by up to one
+    // buffer (2 × maxrate kbit) spread over its length.
+    for (const r of capped.mp4) expect(kbps(r, capped.duration), `${r.src} kbps`).toBeLessThan(120 + (2 * 120) / capped.duration);
+    expect(kbps(free.mp4[0], free.duration), 'uncapped kbps, which must exceed the cap for this test to mean anything').toBeGreaterThan(160);
+  });
+
   test('writes one H.264 MP4 per rung no larger than the source, and a manifest that passes the schema', async () => {
     const input = await clip('hero.mp4');
 

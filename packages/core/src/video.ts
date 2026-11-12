@@ -25,12 +25,41 @@ export interface VideoOptions {
   trim?: { start?: number; end?: number };
   /** Seconds into the (trimmed) clip to take the poster from. Default 0. */
   posterAt?: number;
+  /**
+   * Peak bitrate in kbps per ladder height, capping CRF so a rung stays
+   * playable on the connection it is meant for; `false` for uncapped CRF.
+   * Default 480: 800, 720: 1600, 1080: 3000.
+   */
+  maxrate?: Record<number, number> | false;
 }
 
 export const DEFAULT_LADDER = [480, 720, 1080];
+export const DEFAULT_MAXRATE: Record<number, number> = { 480: 800, 720: 1600, 1080: 3000 };
 
 // Bump whenever the same input and options would produce different files.
-const PIPELINE_VERSION = 1;
+const PIPELINE_VERSION = 2;
+
+/**
+ * The cap in kbps for a rung `height` pixels on its short side: its own entry,
+ * else linear between the nearest heights listed, else proportional to the
+ * nearest one, so a custom ladder needs no table of its own.
+ */
+export function maxrateFor(height: number, table: Record<number, number>): number {
+  if (table[height]) return table[height];
+  const heights = Object.keys(table).map(Number).sort((a, b) => a - b);
+  const below = heights.filter((h) => h < height).pop();
+  const above = heights.find((h) => h > height);
+  if (below === undefined) return Math.round((table[above!] * height) / above!);
+  if (above === undefined) return Math.round((table[below] * height) / below);
+  return Math.round(table[below] + ((table[above] - table[below]) * (height - below)) / (above - below));
+}
+
+/** A `maxrate` table is non-empty, with whole-pixel heights and whole kbps above 0. */
+export function isMaxrateTable(value: unknown): value is Record<number, number> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const entries = Object.entries(value);
+  return entries.length > 0 && entries.every(([h, k]) => /^[1-9]\d*$/.test(h) && Number.isInteger(k) && k > 0);
+}
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 // Names ffmpeg's HLS muxer writes below, and the only ones cleanup may delete.
@@ -43,7 +72,7 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
   const id = options.id ?? basename(input, extname(input));
   if (!ID.test(id)) throw new Error(`${input}: "${id}" is not a usable id; rename the file or pass { id }`);
   const ladder = options.ladder ?? DEFAULT_LADDER;
-  const { av1 = false, hls = false, keepAudio = false, trim = {}, posterAt = 0 } = options;
+  const { av1 = false, hls = false, keepAudio = false, trim = {}, posterAt = 0, maxrate = DEFAULT_MAXRATE } = options;
   if (!ladder.length || !ladder.every((h) => Number.isInteger(h) && h > 0)) {
     throw new Error(`${input}: ladder must list whole numbers of pixels, such as [480, 720, 1080]`);
   }
@@ -51,8 +80,11 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
     throw new Error(`${input}: trim needs 0 <= start < end`);
   }
   if (posterAt < 0) throw new Error(`${input}: posterAt cannot be negative`);
+  if (maxrate !== false && !isMaxrateTable(maxrate)) {
+    throw new Error(`${input}: maxrate must map ladder heights to whole kbps, such as { 480: 800, 720: 1600 }, or be false`);
+  }
 
-  const hash = createHash('sha256').update(JSON.stringify({ PIPELINE_VERSION, id, ladder, av1, hls, keepAudio, trim, posterAt }));
+  const hash = createHash('sha256').update(JSON.stringify({ PIPELINE_VERSION, id, ladder, av1, hls, keepAudio, trim, posterAt, maxrate }));
   await pipeline(createReadStream(input), hash);
   const digest = hash.digest('hex');
 
@@ -87,13 +119,17 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
   // x264 takes forced keyframes; SVT-AV1 ignores them and needs a fixed GOP.
   const gop = String(Math.round(source.fps * 2));
   const args = [...(start ? ['-ss', String(start)] : []), '-t', String(duration), '-i', input, '-filter_complex', [split, ...scales].join(';')];
-  outputs.forEach(({ codec, src }, i) => {
+  outputs.forEach(({ p, codec, src }, i) => {
     args.push('-map', `[v${i}]`, ...(audio ? ['-map', '0:a:0', '-c:a', 'aac', '-b:a', '128k'] : ['-an']));
     args.push('-map_metadata', '-1', '-map_chapters', '-1', '-pix_fmt', 'yuv420p', '-movflags', '+faststart');
     if (codec === 'h264') {
       args.push('-c:v', 'libx264', '-profile:v', 'high', '-crf', '23', '-force_key_frames', 'expr:gte(t,n_forced*2)', '-sc_threshold', '0');
     } else {
       args.push('-c:v', 'libsvtav1', '-preset', '8', '-crf', '35', '-g', gop, '-svtav1-params', 'irefresh-type=2');
+    }
+    if (maxrate) {
+      const kbps = maxrateFor(p, maxrate);
+      args.push('-maxrate', `${kbps}k`, '-bufsize', `${kbps * 2}k`);
     }
     args.push(join(outDir, src));
   });
