@@ -61,7 +61,9 @@ test.describe('on a throttled network', () => {
         const v = e.target as HTMLVideoElement;
         if (log.aheadAtStart < 0) log.aheadAtStart = v.buffered.length ? v.buffered.end(v.buffered.length - 1) - v.currentTime : 0;
       }, true);
-      document.addEventListener('waiting', () => log.aheadAtStart >= 0 && log.waiting++, true);
+      // The native loop's seek back to 0 fires waiting too, in Chromium even
+      // with the whole clip buffered; that is not a network stall.
+      document.addEventListener('waiting', (e) => log.aheadAtStart >= 0 && !(e.target as HTMLVideoElement).seeking && log.waiting++, true);
     });
     await page.goto(PAGE);
     await expect.poll(() => isPlaying(page, 'bg'), { timeout: 60_000 }).toBe(true);
