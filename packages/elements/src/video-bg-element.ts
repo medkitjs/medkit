@@ -216,26 +216,23 @@ export class MedkitVideoBg extends HTMLElement {
     video.tabIndex = -1;
     video.preload = 'auto';
     video.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
-    // Playback waits for canplaythrough or 3 seconds buffered ahead, and after
-    // 5 seconds for HAVE_FUTURE_DATA, so a slow connection stalls on the
-    // poster, which is frame 0, instead of on a frozen frame. A stall later
+    // Autoplay waits for canplaythrough or 3 seconds buffered ahead, so a slow
+    // connection stalls on the poster, which is frame 0, instead of on a
+    // frozen frame. iOS loads no further than metadata until play() is called,
+    // and says so with suspend, which starts it; after 5 seconds it starts
+    // regardless. A visitor's action skips all of this (sync). A stall later
     // (waiting) is left alone: the last frame stays, with no spinner.
-    let late = false;
     const go = () => {
       if (this.ready.has(video)) return;
       this.ready.add(video);
       this.sync();
     };
-    const check = () => {
+    video.oncanplaythrough = video.onsuspend = go;
+    video.onprogress = video.oncanplay = () => {
       const { buffered: b } = video;
-      if ((b.length && b.end(b.length - 1) - video.currentTime >= Math.min(3, video.duration)) || (late && video.readyState > 2)) go();
+      if (b.length && b.end(b.length - 1) - video.currentTime >= Math.min(3, video.duration)) go();
     };
-    video.oncanplaythrough = go;
-    video.onprogress = video.oncanplay = check;
-    setTimeout(() => {
-      late = true;
-      check();
-    }, 5000);
+    setTimeout(go, 5000);
     video.src = start ? `${pick.src}#t=${start}` : pick.src;
     video.onended = () => {
       if (this.autoadvance) return this.go(this.index + 1, false);
@@ -274,11 +271,17 @@ export class MedkitVideoBg extends HTMLElement {
     video.requestVideoFrameCallback(reveal);
     clip.prepend(video);
     this.videos.set(clip, video);
+    // The button was drawn before this video existed, and would still offer play.
+    this.update();
     return video;
   }
 
-  /** Plays the active clip, or pauses it, to match visibility and the visitor's choice; every other clip pauses. */
-  private sync() {
+  /**
+   * Plays the active clip, or pauses it, to match visibility and the visitor's
+   * choice; every other clip pauses. `now` is a visitor's action: it plays at
+   * once, without the start rule, and inside the tap, which iOS requires.
+   */
+  private sync(now?: boolean) {
     if (!this.started || this.still) return;
     for (const [clip, video] of this.videos) if (clip !== this.clip) video.pause();
     if (this.visible && !document.hidden && !this.userPaused) {
@@ -287,11 +290,14 @@ export class MedkitVideoBg extends HTMLElement {
       // during play() rejects too, with AbortError, and must not show a poster.
       const video = this.load(this.clip);
       if (!video) this.showPoster();
-      else if (this.ready.has(video))
-        video.play().catch((e: DOMException) => {
-          if (e.name === 'NotAllowedError') this.showPoster();
-          this.update();
-        });
+      else {
+        if (now) this.ready.add(video);
+        if (this.ready.has(video))
+          video.play().catch((e: DOMException) => {
+            if (e.name === 'NotAllowedError') this.showPoster();
+            this.update();
+          });
+      }
     } else this.video?.pause();
   }
 
@@ -335,7 +341,7 @@ export class MedkitVideoBg extends HTMLElement {
       video.currentTime = Number(clip.getAttribute('start')) || 0;
       video.muted = muted;
     }
-    this.sync();
+    this.sync(manual);
     this.update();
     if (manual && this.status) {
       this.status.textContent = label('announce', { title: clip.getAttribute('title') ?? '', current: this.index + 1, total });
@@ -352,7 +358,7 @@ export class MedkitVideoBg extends HTMLElement {
   private toggle() {
     this.userPaused = this.playing;
     this.remember(this.userPaused);
-    this.sync();
+    this.sync(true);
     this.update();
   }
 

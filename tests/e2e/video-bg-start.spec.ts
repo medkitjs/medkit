@@ -4,6 +4,10 @@
 // the poster's estimate alone without a stall, and the intro colour that
 // replaces the first poster until a video will not play.
 //
+// Also the start rule's iOS paths, simulated by forcing preload to metadata:
+// autoplay on suspend, a visitor's Play skipping the rule, and the button's
+// label once the video exists.
+//
 // The step-down rules themselves are unit-tested in rendition.test.ts.
 //
 // Not covered: the throttled run outside Chromium, because only Chromium lets
@@ -12,7 +16,9 @@
 // second readyState fallback, which only matters on a network slow enough to
 // starve canplaythrough, and the iPhone check covers.
 
+import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
+import { MEDIA } from './setup.js';
 
 const PAGE = '/examples/html/video-bg.html';
 
@@ -42,6 +48,118 @@ test('when not even the smallest rendition can be sustained, no video loads and 
   await page.waitForTimeout(1500);
   expect(requests, 'video requested on a 0.3 Mbps connection').toEqual([]);
   expect(await page.locator('#bg picture').evaluate((p) => getComputedStyle(p).opacity)).toBe('1');
+});
+
+type Played = { at: number; readyState: number };
+
+/** The byte just past an MP4's moov box (ftyp, moov, then the frames in mdat). */
+function metadataEnd(file: Buffer) {
+  for (let at = 0; at < file.length; at += file.readUInt32BE(at)) {
+    if (file.toString('latin1', at + 4, at + 8) === 'moov') return at + file.readUInt32BE(at);
+  }
+  throw new Error('no moov box');
+}
+type Media = { type: string; at: number; readyState: number };
+
+/**
+ * iOS Safari loads no further than metadata until play() is called, whatever
+ * `preload` says. Forcing `preload` to `metadata` gets close, but these short
+ * fixtures still buffer past 3 seconds, so the element is also kept from
+ * hearing canplay, canplaythrough and progress: to it, nothing is buffered.
+ * `silentSuspend` hides suspend too, so only a visitor's action or the
+ * 5-second fallback can start the video. Records every play() call and the
+ * media events the start rule depends on.
+ */
+const likeIos = (page: Page, silentSuspend = false) =>
+  page.addInitScript((silent) => {
+    Object.defineProperty(HTMLMediaElement.prototype, 'preload', {
+      configurable: true,
+      get() {
+        return this.getAttribute('preload') ?? '';
+      },
+      set() {
+        this.setAttribute('preload', 'metadata');
+      },
+    });
+    for (const handler of ['oncanplay', 'oncanplaythrough', 'onprogress', ...(silent ? ['onsuspend'] : [])]) {
+      Object.defineProperty(HTMLMediaElement.prototype, handler, { configurable: true, get: () => null, set() {} });
+    }
+    const w = window as unknown as { played: { at: number; readyState: number }[]; media: { type: string; at: number; readyState: number }[] };
+    w.played = [];
+    w.media = [];
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+      w.played.push({ at: performance.now(), readyState: this.readyState });
+      return play.call(this);
+    };
+    for (const type of ['loadstart', 'suspend', 'canplaythrough']) {
+      document.addEventListener(type, (e) => w.media.push({ type, at: performance.now(), readyState: (e.target as HTMLMediaElement).readyState }), true);
+    }
+  }, silentSuspend);
+
+const record = (page: Page) =>
+  page.evaluate(() => {
+    const { played, media } = window as unknown as { played: Played[]; media: Media[] };
+    return { played, media };
+  });
+
+test.describe('when the browser loads only metadata before play(), as iOS does', () => {
+  test('autoplay starts on suspend, with nothing buffered, well before the 5-second fallback', async ({ page }) => {
+    await likeIos(page);
+    await page.goto(PAGE);
+    await expect.poll(() => isPlaying(page, 'bg'), { timeout: 4000, message: 'playing within 4 s' }).toBe(true);
+    const { played, media } = await record(page);
+    const loadstart = media.find((m) => m.type === 'loadstart')!;
+    const suspend = media.find((m) => m.type === 'suspend');
+    expect(suspend, 'a suspend event').toBeDefined();
+    expect(played[0].at, 'first play() before the suspend that should trigger it').toBeGreaterThanOrEqual(suspend!.at);
+    expect(played[0].at - loadstart.at, 'ms from loadstart to play(), the 5-second fallback being 5000').toBeLessThan(4000);
+  });
+
+  test('the button offers pause as soon as the video exists, because it is waiting to play', async ({ page }) => {
+    await likeIos(page, true);
+    await page.goto(PAGE);
+    await expect(page.locator('#bg video')).toHaveCount(1);
+    await expect(page.locator('#bg medkit-video-bg').getByRole('button'), 'the label drawn before the video existed').toHaveAccessibleName('Pause background video');
+  });
+
+  test('a visitor pressing Play starts the video at once, even with only metadata loaded', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', "the route does not hold back WebKit's media loads: readyState reached 4 with every later range held");
+    await likeIos(page, true);
+    // The first request gets the moov box and 32 KB of frames, which Chromium's
+    // demuxer reads before it reports metadata (with the moov box alone it
+    // stays at 0); every later range waits for the press: readyState stays at 1.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    await page.route('**/bg-*.mp4', async (route) => {
+      if (!/^bytes=0-/.test(route.request().headers().range ?? 'bytes=0-')) {
+        await held;
+        return route.continue();
+      }
+      const file = await readFile(`${MEDIA}/${new URL(route.request().url()).pathname.split('/').pop()}`);
+      const end = metadataEnd(file) + 32 * 1024;
+      await route.fulfill({
+        status: 206,
+        headers: { 'content-type': 'video/mp4', 'accept-ranges': 'bytes', 'content-range': `bytes 0-${end - 1}/${file.length}` },
+        body: file.subarray(0, end),
+      });
+    });
+    await page.goto(PAGE);
+    const video = page.locator('#bg video');
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState), { message: 'metadata loaded' }).toBe(1);
+    await page.waitForTimeout(500);
+    expect((await record(page)).played, 'play() calls before any visitor action, with suspend silenced').toEqual([]);
+
+    const button = page.locator('#bg medkit-video-bg').getByRole('button');
+    await button.click();
+    await expect(button).toHaveAccessibleName('Play background video');
+    await button.click();
+    const { played } = await record(page);
+    expect(played.length, 'play() calls from the Play press').toBe(1);
+    expect(played[0].readyState, 'readyState when Play called play()').toBe(1);
+    release();
+    await expect.poll(() => isPlaying(page, 'bg'), { message: 'playing once the rest arrives' }).toBe(true);
+  });
 });
 
 test.describe('on a throttled network', () => {
