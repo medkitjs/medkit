@@ -58,4 +58,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
-      - run: pnpm test:e2e --project=${{ matrix.browser }}
+      # The gate project depends on the engine's project, so this runs both.
+      - run: pnpm test:e2e --project=${{ matrix.browser }}-gate
