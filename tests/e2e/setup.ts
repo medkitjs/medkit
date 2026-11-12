@@ -120,7 +120,9 @@ const page = (title: string, body: string) => `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${title}</title>
     <script type="module" src="/packages/elements/dist/video-bg.js"></script>
-    <style>body { margin: 0; font: 16px/1.5 system-ui, sans-serif; } main { max-width: 1200px; margin: 0 auto; padding: 0 16px; } h2, a { color: #fff; background: #000; }</style>
+    <style>body { margin: 0; font: 16px/1.5 system-ui, sans-serif; } main { max-width: 1200px; margin: 0 auto; padding: 0 16px; } h2, a { color: #fff; background: #000; }
+      /* Black behind every background, as on many real pages, so a moment with neither poster nor video frame shows as dark. */
+      medkit-video-bg { background: #000; }</style>
   </head>
   <body>
     <main>
