@@ -30,7 +30,7 @@ button{all:unset;box-sizing:border-box;display:grid;place-items:center;width:var
 button:focus-visible{outline:2px solid var(--medkit-accent,#fff);box-shadow:0 0 0 4px #000}
 svg{width:24px;height:24px;fill:currentColor}
 span{padding:2px 8px;border-radius:12px;background:rgba(0,0,0,.6);font:14px/1.5 system-ui,sans-serif}
-[role=status]{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+[role=status],.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 @media (forced-colors:active){button,span{border:1px solid ButtonText;background:ButtonFace;color:ButtonText}}`;
 
 // Hides iOS's own start button on a video that has no controls; a shadow root
@@ -70,6 +70,7 @@ export class MedkitVideoBg extends HTMLElement {
   private videos = new Map<HTMLElement, HTMLVideoElement>();
   private buttons: Record<string, HTMLButtonElement> = {};
   private position?: HTMLElement;
+  private spoken?: HTMLElement;
   private status?: HTMLElement;
   /** Reduced motion, Save-Data or 2G: posters only. */
   private still = false;
@@ -108,7 +109,11 @@ export class MedkitVideoBg extends HTMLElement {
     };
     if (this.clips.length > 1 && controls.includes('nav')) {
       make('prev', () => this.go(this.index - 1, true));
+      // Seen as "1 / 3", heard as "1 of 3".
       this.position = bar.appendChild(document.createElement('span'));
+      this.position.setAttribute('aria-hidden', 'true');
+      this.spoken = bar.appendChild(document.createElement('span'));
+      this.spoken.className = 'sr';
       make('next', () => this.go(this.index + 1, true));
     }
     // Without a video there is nothing to pause or hear.
@@ -401,6 +406,9 @@ export class MedkitVideoBg extends HTMLElement {
     set(expand, 'expand', label('expand'));
     set(prev, 'prev', label('prev'));
     set(next, 'next', label('next', values));
-    if (this.position) this.position.textContent = label('position', values);
+    if (this.position) {
+      this.position.textContent = label('position', values);
+      this.spoken!.textContent = label('spokenPosition', values);
+    }
   }
 }

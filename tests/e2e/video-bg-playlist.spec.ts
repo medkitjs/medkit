@@ -1,5 +1,5 @@
 // Covers the <medkit-video-bg> playlist in every engine: Previous/Next with the
-// position, inert inactive overlays, announcements on manual changes only,
+// position, seen as "1 / 3" and heard as "1 of 3", inert inactive overlays, announcements on manual changes only,
 // auto-advance and pausing it, the crossfade order, preloading at 75%, the
 // clipchange event, and the pause button only clips under 5 seconds may drop.
 //
@@ -11,7 +11,7 @@ import { expect, test, type Page } from '@playwright/test';
 const PAGE = '/examples/html/video-bg-playlist.html';
 
 const bg = (page: Page, id: string) => page.locator(`#${id}`);
-const position = (page: Page, id: string) => bg(page, id).locator('span');
+const position = (page: Page, id: string) => bg(page, id).locator('span[aria-hidden=true]');
 const status = (page: Page, id: string) => bg(page, id).locator('[role=status]');
 const activeIndex = (page: Page, id: string) =>
   page.locator(`#${id} medkit-clip`).evaluateAll((clips) => clips.findIndex((c) => !(c as HTMLElement).inert));
@@ -26,6 +26,22 @@ test('Next and Previous move through the clips with the position shown, wrapping
   await bg(page, 'list').getByRole('button', { name: 'Previous video' }).click();
   await expect(position(page, 'list')).toHaveText('3 / 3');
   expect(await activeIndex(page, 'list')).toBe(2);
+});
+
+test('screen readers hear the position as "1 of 3", while "1 / 3" is only seen', async ({ page }) => {
+  await page.goto(PAGE);
+  const controls = bg(page, 'list').locator('[part=controls]');
+  await expect(controls, 'what a screen reader meets in the controls').toMatchAriaSnapshot(`
+    - button "Previous video"
+    - text: 1 of 3
+    - button "Next video"
+  `);
+  await bg(page, 'list').getByRole('button', { name: 'Next video' }).click();
+  await expect(controls).toMatchAriaSnapshot(`
+    - button "Previous video"
+    - text: 2 of 3
+    - button "Next video"
+  `);
 });
 
 test("only the active clip's overlay can take focus; inactive overlays are inert", async ({ page }) => {

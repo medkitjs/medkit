@@ -12,6 +12,8 @@ export const strings = {
   prev: 'Previous video',
   next: 'Next video',
   position: '{current} / {total}',
+  /** The position as screen readers hear it; "1 / 3" is read "1 slash 3". */
+  spokenPosition: '{current} of {total}',
   announce: '{title}, {current} of {total}',
 };
 
