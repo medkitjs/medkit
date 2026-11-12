@@ -4,10 +4,15 @@
 //   ffmpeg measures the average brightness of the background's box in every
 //   recorded frame. The clips are testsrc2, which has no dark frame, so a dark
 //   frame can only come from the element. A frame counts only when the
-//   overlay's heading (white text on a black bar) is visible in it: the
+//   overlay's heading text in it matches a screenshot of that text from an
+//   unrecorded copy of the page (SSIM ≥ 0.3; every clip on these pages has
+//   the same heading): the
 //   element never hides the overlay, so a frame without it is the recorder
-//   dropping the whole box, which Firefox's does for one or two frames at a
-//   time (issue #4), and it is ignored. Among the frames that count, zero may
+//   dropping or tearing the box, which Firefox's does for a frame or two at a
+//   time (issue #4), and it is ignored. Measured over 36 runs: intact frames
+//   0.47–0.73 (lowest in WebKit, whose text the recording blurs most),
+//   dropped and torn ones 0.001–0.17. A tear below the heading would still
+//   count, and fail the run falsely; never pass it falsely. Among the frames that count, zero may
 //   be dark. So that ignoring frames cannot pass a run with no evidence, each
 //   poster→video switch needs 6 counted frames within ±140 ms of it, or the
 //   run fails as inconclusive. ±140 ms holds 7 frames at 25 fps; ±100 ms
@@ -109,6 +114,7 @@ type Box = { x: number; y: number; width: number; height: number };
 type Frame = Record<string, number>;
 
 const DARK = 40;
+const OVERLAY_SSIM = 0.3;
 // Generous: the start rule may wait 5 s for buffering, on a machine under load.
 const POSTER_GONE = { message: 'the poster faded', timeout: 15_000 };
 const WINDOW = 0.14;
@@ -130,6 +136,16 @@ async function measure(file: string, { x, y, width, height }: Box): Promise<Fram
     });
 }
 
+/** SSIM of one region of every recorded frame against a reference image of that region, in luma. */
+async function similarity(file: string, { x, y, width, height }: Box, reference: string): Promise<number[]> {
+  const [w, h] = [Math.floor(width), Math.floor(height)];
+  const graph = `[0:v]crop=${w}:${h}:${Math.max(0, Math.floor(x))}:${Math.max(0, Math.floor(y))},format=gray[a];[1:v]scale=${w}:${h},format=gray[b];[a][b]ssim=stats_file=-:shortest=1`;
+  const { stdout } = await promisify(execFile)('ffmpeg', ['-v', 'error', '-i', file, '-loop', '1', '-i', reference, '-filter_complex', graph, '-f', 'null', '-'], {
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  return [...stdout.matchAll(/^n:\d+ .*All:([\d.]+)/gm)].map((m) => Number(m[1]));
+}
+
 /**
  * Closes the page, then reads its recording: the switch times from the
  * marker, the frames that count (overlay heading visible), and which of those
@@ -137,18 +153,42 @@ async function measure(file: string, { x, y, width, height }: Box): Promise<Fram
  */
 async function recording(page: Page, host: Locator) {
   const box = (await host.boundingBox())!;
-  // The first clip's heading; every clip's sits in the same place.
-  const heading = (await host.locator('h2').first().boundingBox())!;
+  // Every clip's heading reads the same and sits in the same place, so the
+  // active one, captured now, is the reference for every frame.
+  // The heading's text, not its bar: SSIM rates two flat black areas as
+  // identical, so a bar that is mostly black would match a black frame. One
+  // whole-pixel rectangle with even sides (ffmpeg's crop rounds odd ones),
+  // for both the screenshot and the crop.
+  const text = await host.locator('medkit-clip:not([inert]) h2').evaluate((h2) => {
+    const range = document.createRange();
+    range.selectNodeContents(h2);
+    const { x, y, width, height } = range.getBoundingClientRect();
+    return { x, y, width, height };
+  });
+  const even = (n: number) => Math.floor(n / 2) * 2;
+  const heading = { x: Math.ceil(text.x), y: Math.ceil(text.y), width: even(text.width - 1), height: even(text.height - 1) };
+  // From a separate page with no recording, opened only once the recorded one
+  // is closed: a screenshot of the recorded page disturbed Chromium's
+  // recording (an extra marker shade, twice), and a second page playing video
+  // beside it darkened WebKit's.
+  const url = page.url();
   await page.close();
+  const reference = test.info().outputPath('heading.png');
+  const context = await page.context().browser()!.newContext({ viewport: VIEWPORT, deviceScaleFactor: test.info().project.use.deviceScaleFactor });
+  const fresh = await context.newPage();
+  await fresh.goto(url);
+  await fresh.screenshot({ path: reference, clip: heading, scale: 'css' });
+  await context.close();
   const file = await page.video()!.path();
   const [boxes, headings, markers] = await Promise.all([
     measure(file, box),
-    measure(file, heading),
+    similarity(file, heading, reference),
     measure(file, { x: VIEWPORT.width - 12, y: 4, width: 8, height: 8 }),
   ]);
-  // The bar is mostly black and the text white; over video, or dropped to
-  // black, one of the two is missing.
-  const counted = boxes.filter((_, i) => headings[i].YLOW <= 25 && headings[i].YMAX >= 200);
+  // A torn frame, or one the recorder dropped the overlay from, does not match
+  // the heading; an element that showed black behind an intact overlay does.
+  // ffmpeg's ssim sometimes ends a frame early; a frame with no score does not count.
+  const counted = boxes.filter((_, i) => (headings[i] ?? 0) >= OVERLAY_SSIM);
   const switches = [];
   for (let k = 1; k <= MAX_FADES; k++) {
     const first = markers.find((m) => Math.abs(m.YAVG - shadeLuma(k)) <= 20);

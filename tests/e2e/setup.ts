@@ -136,8 +136,8 @@ ${body}
 /** The video-bg pages, rendered by renderVideoBg() from the real manifests, so the tests run against real SSR output. */
 async function writeVideoPages(m: Record<string, Clip>) {
   const baseUrl = '/examples/html/media/';
-  const overlay = (title: string, id: string) => `<div style="padding: 16px"><h2>${title}</h2><a href="#${id}">About ${title}</a></div>`;
-  const clip = (id: string, title: string) => ({ ...m[id], title, overlay: overlay(title, id) });
+  const overlay = (heading: string, title: string, id: string) => `<div style="padding: 16px"><h2>${heading}</h2><a href="#${id}">About ${title}</a></div>`;
+  const clip = (id: string, title: string, heading = title) => ({ ...m[id], title, overlay: overlay(heading, title, id) });
   await writeFile(
     resolve(MEDIA, '../video-bg.html'),
     page(
@@ -151,7 +151,9 @@ async function writeVideoPages(m: Record<string, Clip>) {
     resolve(MEDIA, '../video-bg-playlist.html'),
     page(
       'medkit-video-bg playlist',
-      `      <div id="list">${renderVideoBg([clip('bg', 'Test pattern'), clip('talk', 'Test pattern with a tone'), clip('short-a', 'Short clip A')], { baseUrl, controls: 'nav' })}</div>
+      // One headline over rotating clips, as on many heroes; the M2 gate also
+      // needs it, comparing every recorded frame's heading with one reference.
+      `      <div id="list">${renderVideoBg([clip('bg', 'Test pattern', 'Test patterns'), clip('talk', 'Test pattern with a tone', 'Test patterns'), clip('short-a', 'Short clip A', 'Test patterns')], { baseUrl, controls: 'nav' })}</div>
       <div id="auto">${renderVideoBg([clip('short-a', 'Short clip A'), clip('short-b', 'Short clip B')], { baseUrl, controls: 'pause nav', autoadvance: true })}</div>
       <div id="short">${renderVideoBg([clip('short-b', 'Short clip B')], { baseUrl, controls: '' })}</div>`,
     ),
