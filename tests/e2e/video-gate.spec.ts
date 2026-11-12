@@ -21,6 +21,10 @@
 //   frame fails, in every engine, which catches a one-frame flash the
 //   recording could miss.
 //
+// Any dark frame with the overlay visible, in any engine and enforced or not,
+// keeps the recording and the frames as PNGs in the test's output folder, which
+// CI uploads, and prints a warning.
+//
 // Recording is timing-sensitive, so this file runs in its own *-gate
 // projects, one test at a time, after the rest of its engine's tests
 // (playwright.config.ts).
@@ -37,6 +41,8 @@
 // before each minor release.
 
 import { execFile } from 'node:child_process';
+import { copyFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
@@ -108,7 +114,7 @@ const POSTER_GONE = { message: 'the poster faded', timeout: 15_000 };
 const WINDOW = 0.14;
 const MIN_COUNTED = 6;
 
-/** signalstats for one region of every recorded frame, with each frame's time in seconds as `t`. */
+/** signalstats for one region of every recorded frame, with each frame's index as `n` and time in seconds as `t`. */
 async function measure(file: string, { x, y, width, height }: Box): Promise<Frame[]> {
   const crop = `crop=${Math.floor(width)}:${Math.floor(height)}:${Math.max(0, Math.floor(x))}:${Math.max(0, Math.floor(y))}`;
   const { stdout } = await promisify(execFile)('ffmpeg', ['-v', 'error', '-i', file, '-vf', `${crop},signalstats,metadata=print:file=-`, '-f', 'null', '-'], {
@@ -117,8 +123,8 @@ async function measure(file: string, { x, y, width, height }: Box): Promise<Fram
   return stdout
     .split(/^frame:/m)
     .slice(1)
-    .map((block) => {
-      const frame: Frame = { t: Number(/pts_time:([\d.]+)/.exec(block)![1]) };
+    .map((block, n) => {
+      const frame: Frame = { n, t: Number(/pts_time:([\d.]+)/.exec(block)![1]) };
       for (const [, key, value] of block.matchAll(/signalstats\.(\w+)=([\d.]+)/g)) frame[key] = Number(value);
       return frame;
     });
@@ -149,26 +155,47 @@ async function recording(page: Page, host: Locator) {
     if (first) switches.push(first.t);
   }
   return {
+    file,
     frames: boxes.length,
     counted: counted.length,
     switches,
     thin: switches.filter((s) => counted.filter((f) => Math.abs(f.t - s) <= WINDOW).length < MIN_COUNTED),
-    dark: counted.filter((f) => f.YAVG <= DARK).map((f) => `${f.t.toFixed(2)} s (luma ${f.YAVG.toFixed(1)})`),
+    dark: counted.filter((f) => f.YAVG <= DARK),
   };
+}
+
+const describeFrames = (frames: Frame[]) => frames.map((f) => `${f.t.toFixed(2)} s (luma ${f.YAVG.toFixed(1)})`);
+
+/**
+ * Keeps the recording and each dark frame as a PNG in the test's output
+ * folder, which CI uploads, and warns, in every engine: a dark frame with the
+ * overlay visible may be the element's fault even where it does not fail the
+ * run.
+ */
+async function keepDarkFrames(file: string, dark: Frame[], browserName: string) {
+  const info = test.info();
+  await copyFile(file, info.outputPath('dark-frame-recording.webm'));
+  // The first 10 as PNGs; the recording holds them all.
+  for (const f of dark.slice(0, 10)) {
+    await promisify(execFile)('ffmpeg', ['-v', 'error', '-y', '-i', file, '-vf', `select=eq(n\\,${f.n})`, '-frames:v', '1', info.outputPath(`dark-frame-${f.t.toFixed(2)}s.png`)]);
+  }
+  const message = `${dark.length} dark frame(s) with the overlay visible in ${browserName}, at ${describeFrames(dark).join(', ')}; recording and frames kept in ${dirname(info.outputPath('x'))}`;
+  console.warn(process.env.CI ? `::warning title=video-bg gate::${message}` : `WARNING: ${message}`);
 }
 
 async function expectNoDarkFrame(page: Page, host: Locator, fades: Report, minFrames: number, browserName: string) {
   expect(fades.fades, 'fades the marker can tell apart').toBeLessThanOrEqual(MAX_FADES);
   const r = await recording(page, host);
+  if (r.dark.length) await keepDarkFrames(r.file, r.dark, browserName);
   if (browserName === 'firefox') {
-    const verdict = r.dark.length ? `dark: ${r.dark.join(', ')}` : r.thin.length ? `inconclusive at ${r.thin.join(', ')} s` : 'no dark frame';
+    const verdict = r.dark.length ? `dark: ${describeFrames(r.dark).join(', ')}` : r.thin.length ? `inconclusive at ${r.thin.join(', ')} s` : 'no dark frame';
     console.log(`Firefox recording, not enforced: ${verdict}; ${r.switches.length} of ${fades.fades} switches found, ${r.counted} of ${r.frames} frames counted`);
     return;
   }
   expect(r.frames, 'recorded frames').toBeGreaterThan(minFrames);
   expect(r.switches.length, 'marker shades in the recording, one per poster fade').toBe(fades.fades);
   expect(r.thin, `inconclusive: switches (s) with fewer than ${MIN_COUNTED} frames showing the overlay within ±${WINDOW * 1000} ms`).toEqual([]);
-  expect(r.dark, `dark frames with the overlay visible, of ${r.counted} counted and ${r.frames} recorded`).toEqual([]);
+  expect(describeFrames(r.dark), `dark frames with the overlay visible, of ${r.counted} counted and ${r.frames} recorded`).toEqual([]);
 }
 
 test('the hero background goes from poster to video without a dark frame', async ({ page, browserName }) => {

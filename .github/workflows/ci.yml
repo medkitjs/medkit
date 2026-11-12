@@ -60,3 +60,11 @@ jobs:
       - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
       # The gate project depends on the engine's project, so this runs both.
       - run: pnpm test:e2e --project=${{ matrix.browser }}-gate
+      # The gate keeps a recording and its frames whenever a dark frame shows the
+      # overlay, in Firefox too, where that does not fail the run.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: dark-frames-${{ matrix.browser }}
+          path: test-results/**/dark-frame*
+          if-no-files-found: ignore
