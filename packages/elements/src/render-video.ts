@@ -6,7 +6,7 @@
 // two are interchangeable; that is why styles and boolean attributes are
 // written exactly as React writes them.
 
-import { checkCss, fallback, srcset, tag } from './html.js';
+import { checkColour, checkCss, fallback, srcset, tag } from './html.js';
 import type { ImageManifest, VideoManifest } from './manifest.js';
 import { read, urls } from './render.js';
 
@@ -31,20 +31,28 @@ export interface RenderVideoBgOptions {
   baseUrl?: string;
   /** How wide the poster displays; default `100vw`. */
   sizes?: string;
+  /**
+   * A CSS colour shown instead of the first clip's poster. The poster is then
+   * fetched only when no video will play: reduced motion, Save-Data, 2G, too
+   * little bandwidth, refused autoplay, or no JavaScript.
+   */
+  intro?: string;
 }
 
 export type VideoBgProps = RenderVideoBgOptions & { clips: VideoClip[] };
 
 /** The `<medkit-video-bg>` element's own attributes, in the order React writes them. */
-export function hostAttrs(clips: Pick<VideoClip, 'video'>[], { controls = 'pause', autoadvance }: RenderVideoBgOptions) {
+export function hostAttrs(clips: Pick<VideoClip, 'video'>[], { controls = 'pause', autoadvance, intro }: RenderVideoBgOptions) {
   if (!clips.length) throw new Error('medkit: renderVideoBg needs at least one clip');
   const { width, height } = read(clips[0].video);
+  if (intro !== undefined) checkColour('intro', intro);
   return {
     controls,
     autoadvance: autoadvance ? '' : undefined,
+    intro,
     // A fallback size, so the background has a box with no CSS; any author
     // height wins over it.
-    style: `display:block;position:relative;overflow:hidden;aspect-ratio:${width} / ${height}`,
+    style: `display:block;position:relative;overflow:hidden;aspect-ratio:${width} / ${height}${intro ? `;background:${intro}` : ''}`,
   };
 }
 
@@ -59,15 +67,29 @@ export function clipAttrs({ video, poster, title }: Omit<VideoClip, 'overlay'>, 
     duration: v.duration,
     audio: v.audio ? '' : undefined,
     start: v.poster.at,
-    sources: JSON.stringify(v.mp4.map((r) => ({ src: baseUrl + r.src, width: r.width, height: r.height, codec: r.codec }))),
+    // Average kbps, from the two fields that already define it, so the element
+    // can skip a rendition the connection cannot sustain.
+    sources: JSON.stringify(
+      v.mp4.map((r) => ({ src: baseUrl + r.src, width: r.width, height: r.height, codec: r.codec, kbps: Math.ceil((r.bytes * 8) / v.duration / 1000) })),
+    ),
     // Only the first clip shows with no JavaScript; the element shows the rest.
     hidden: i ? '' : undefined,
     style: 'display:block;position:absolute;inset:0',
   };
 }
 
-/** A clip's poster: a `<picture>` that fills the clip, with the blur behind it. */
-export function posterPicture({ video, poster }: Pick<VideoClip, 'video' | 'poster'>, i: number, { priority, baseUrl = '/media/', sizes = '100vw' }: RenderVideoBgOptions) {
+/**
+ * A clip's poster: a `<picture>` that fills the clip, with the blur behind it.
+ * An intro clip's sits in a `<noscript>`: shown with no JavaScript, and plain
+ * text otherwise, which the element parses when no video will play. Not a
+ * `<template>`: Firefox's speculative parser fetches images inside one.
+ */
+export function posterPicture(clip: Pick<VideoClip, 'video' | 'poster'>, i: number, options: RenderVideoBgOptions) {
+  const html = picture(clip, i, options);
+  return options.intro && !i ? `<noscript>${html}</noscript>` : html;
+}
+
+function picture({ video, poster }: Pick<VideoClip, 'video' | 'poster'>, i: number, { priority, baseUrl = '/media/', sizes = '100vw' }: RenderVideoBgOptions) {
   checkCss('cover', poster.color);
   const blur = video.poster.placeholder ? ` url(${video.poster.placeholder}) center/cover no-repeat` : '';
   const eager = priority && i === 0;

@@ -54,10 +54,34 @@ describe('renderVideoBg', () => {
     const [c] = attrs(renderVideoBg([clip('festival')], { baseUrl: 'https://cdn.example.com/m/' }), 'medkit-clip');
     expect(c).toMatchObject({ src: 'festival', title: 'Clip festival', duration: '14.2' });
     expect(JSON.parse(c.sources)).toEqual([
-      { src: 'https://cdn.example.com/m/festival-480p.mp4', width: 854, height: 480, codec: 'avc1.64001e' },
-      { src: 'https://cdn.example.com/m/festival-1080p.mp4', width: 1920, height: 1080, codec: 'avc1.640028' },
+      { src: 'https://cdn.example.com/m/festival-480p.mp4', width: 854, height: 480, codec: 'avc1.64001e', kbps: 1 },
+      { src: 'https://cdn.example.com/m/festival-1080p.mp4', width: 1920, height: 1080, codec: 'avc1.640028', kbps: 1 },
     ]);
     expect(c.audio, 'a silent clip claims audio').toBeUndefined();
+  });
+
+  test('each rendition carries its average bitrate, rounded up so a connection is never judged fast enough when it is not', () => {
+    const video = { ...clip('a').video, duration: 10 };
+    video.mp4 = [{ ...video.mp4[0], bytes: 1_000_001 }];
+    const [c] = attrs(renderVideoBg([{ ...clip('a'), video }]), 'medkit-clip');
+    expect(JSON.parse(c.sources)[0].kbps, '1,000,001 bytes over 10 s').toBe(801);
+  });
+
+  test('intro shows a colour and holds the first poster back in a noscript; later clips keep theirs', () => {
+    const html = renderVideoBg([clip('a'), clip('b')], { intro: '#102030' });
+    const [host] = attrs(html, 'medkit-video-bg');
+    expect(host.intro).toBe('#102030');
+    expect(host.style, 'the colour behind everything').toMatch(/;background:#102030$/);
+    const [, held] = html.match(/<noscript>(<picture.*?<\/picture>)<\/noscript>/) ?? [];
+    expect(held, 'the first poster, held in a noscript').toContain('a-poster-640.jpg');
+    expect(html.replace(/<noscript>.*?<\/noscript>/, ''), 'a first poster outside the noscript').not.toContain('a-poster');
+    expect(html, 'the second clip lost its poster').toContain('b-poster-640.jpg');
+  });
+
+  test('an intro colour cannot add a declaration or close its attribute', () => {
+    for (const ok of ['black', '#000', 'rgb(0 0 0 / 50%)', 'oklch(0.2 0.1 250)']) expect(() => renderVideoBg([clip('a')], { intro: ok }), ok).not.toThrow();
+    for (const bad of ['red;color:blue', 'url(x)', 'rgb(0,0,0);x:y', '"><script>', 'var(--x)', 'rgb(calc(1))'])
+      expect(() => renderVideoBg([clip('a')], { intro: bad }), bad).toThrow(/not a CSS colour/);
   });
 
   test('a clip that kept audio is marked for the sound button, and a poster time becomes the start', () => {
@@ -105,7 +129,7 @@ describe('renderVideoBg', () => {
 
 test('the React component renders exactly what renderVideoBg() writes', () => {
   const clips = [{ ...clip('a'), title: "Summer's \"night\"" }, clip('b', { audio: 'mp4a.40.2' })];
-  const options = { controls: 'pause nav', autoadvance: true, priority: true };
+  const options = { controls: 'pause nav', autoadvance: true, priority: true, intro: 'black' };
   const react = renderToStaticMarkup(
     createElement(VideoBg, { ...options, clips: [{ ...clips[0], overlay: createElement('h2', null, 'Hi & bye') }, clips[1]] }),
   );

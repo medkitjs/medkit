@@ -154,4 +154,8 @@ async function writeVideoPages(m: Record<string, Clip>) {
       <div id="short">${renderVideoBg([clip('short-b', 'Short clip B')], { baseUrl, controls: '' })}</div>`,
     ),
   );
+  await writeFile(
+    resolve(MEDIA, '../video-bg-intro.html'),
+    page('medkit-video-bg intro colour', `      <div id="intro">${renderVideoBg([clip('bg', 'Test pattern')], { baseUrl, priority: true, intro: '#3366cc' })}</div>`),
+  );
 }

@@ -1,3 +1,4 @@
+import { pickRendition } from './rendition.js';
 import { label } from './strings.js';
 
 /** One MP4 rendition, as renderVideoBg() writes it into a clip's `sources` attribute. */
@@ -6,6 +7,8 @@ export interface ClipSource {
   width: number;
   height: number;
   codec: string;
+  /** Average bitrate. */
+  kbps: number;
 }
 
 const ICONS = {
@@ -36,12 +39,30 @@ const PAGE_CSS = 'medkit-video-bg video::-webkit-media-controls-start-playback-b
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+type Connection = { saveData?: boolean; effectiveType?: string; downlink?: number };
+const connection = () => (navigator as Navigator & { connection?: Connection }).connection;
+
+/**
+ * Throughput in kbps from the first poster with a usable Resource Timing
+ * entry. Time to first byte is left out, so latency does not read as low
+ * bandwidth. A cached poster, or a cross-origin one without
+ * Timing-Allow-Origin, reports 0 bytes and is skipped.
+ */
+function posterKbps(root: Element): number | undefined {
+  for (const img of root.querySelectorAll('img')) {
+    const t = performance.getEntriesByName(img.currentSrc)[0] as PerformanceResourceTiming | undefined;
+    // Bytes × 8 per millisecond is kilobits per second.
+    if (t?.encodedBodySize && t.responseEnd > t.responseStart) return (t.encodedBodySize * 8) / (t.responseEnd - t.responseStart);
+  }
+}
+
 /**
  * A muted, looping background video that never shows a black frame, with an
  * optional playlist of `<medkit-clip>`s. Each clip's server-rendered poster
  * stays on top until its video has painted a frame during playback, then
  * fades out. Nothing loads until the element is within 200px of the viewport,
- * and no video at all with reduced motion, Save-Data or 2G.
+ * and no video at all with reduced motion, Save-Data or 2G. With `intro`, the
+ * first poster waits in a `<noscript>`, shown only when no video will play.
  */
 export class MedkitVideoBg extends HTMLElement {
   private clips: HTMLElement[] = [];
@@ -57,13 +78,17 @@ export class MedkitVideoBg extends HTMLElement {
   /** At least 10% on screen and the tab visible. */
   private visible = true;
   private started = false;
+  /** Videos buffered enough to play through; the poster covers the wait. */
+  private ready = new WeakSet<HTMLVideoElement>();
 
   connectedCallback() {
     if (this.shadowRoot) return;
     this.clips = [...this.children].filter((c): c is HTMLElement => c.localName === 'medkit-clip');
     if (!this.clips.length) return;
-    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
-    this.still = reducedMotion() || !!connection?.saveData || /2g/.test(connection?.effectiveType ?? '');
+    const net = connection();
+    this.still = reducedMotion() || !!net?.saveData || /2g/.test(net?.effectiveType ?? '');
+    const intro = this.getAttribute('intro');
+    if (intro) this.style.background = intro;
     const controls = (this.getAttribute('controls') ?? 'pause').split(/\s+/);
 
     if (!document.getElementById('medkit-video-bg-css')) {
@@ -104,14 +129,20 @@ export class MedkitVideoBg extends HTMLElement {
     });
     this.userPaused = this.remembered;
     this.update();
-    if (this.still) return;
+    if (this.still) return this.showPoster();
 
     new IntersectionObserver(
       ([entry], observer) => {
         if (!entry.isIntersecting) return;
         observer.disconnect();
-        this.started = true;
-        if (!this.userPaused) this.sync();
+        // The poster's own download is the throughput estimate, so the video
+        // waits for it; a failed poster just starts without one.
+        const begin = () => {
+          this.started = true;
+          if (!this.userPaused) this.sync();
+        };
+        const img = this.clip.querySelector('img');
+        img && !img.complete ? img.decode().then(begin, begin) : begin();
       },
       { rootMargin: '200px' },
     ).observe(this);
@@ -169,7 +200,8 @@ export class MedkitVideoBg extends HTMLElement {
     const list = (av1.length ? av1 : playable).filter((s) => Math.min(s.width, s.height) <= 1080).sort((a, b) => a.width - b.width);
     // The rendition must cover the box in both directions, because object-fit: cover crops.
     const [w, h] = [this.clientWidth * devicePixelRatio, this.clientHeight * devicePixelRatio];
-    const pick = list.find((s) => s.width >= w && s.height >= h) ?? list.at(-1);
+    const downlink = connection()?.downlink;
+    const pick = pickRendition(list, w, h, posterKbps(this), downlink && downlink * 1000);
     if (!pick) return;
 
     const start = Number(clip.getAttribute('start')) || 0;
@@ -184,6 +216,26 @@ export class MedkitVideoBg extends HTMLElement {
     video.tabIndex = -1;
     video.preload = 'auto';
     video.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+    // Playback waits for canplaythrough or 3 seconds buffered ahead, and after
+    // 5 seconds for HAVE_FUTURE_DATA, so a slow connection stalls on the
+    // poster, which is frame 0, instead of on a frozen frame. A stall later
+    // (waiting) is left alone: the last frame stays, with no spinner.
+    let late = false;
+    const go = () => {
+      if (this.ready.has(video)) return;
+      this.ready.add(video);
+      this.sync();
+    };
+    const check = () => {
+      const { buffered: b } = video;
+      if ((b.length && b.end(b.length - 1) - video.currentTime >= Math.min(3, video.duration)) || (late && video.readyState > 2)) go();
+    };
+    video.oncanplaythrough = go;
+    video.onprogress = video.oncanplay = check;
+    setTimeout(() => {
+      late = true;
+      check();
+    }, 5000);
     video.src = start ? `${pick.src}#t=${start}` : pick.src;
     video.onended = () => {
       if (this.autoadvance) return this.go(this.index + 1, false);
@@ -203,16 +255,21 @@ export class MedkitVideoBg extends HTMLElement {
         this.load(next);
       }
     };
-    const poster = clip.querySelector('picture');
+    // Without a poster (intro), the video itself starts hidden over the colour.
+    if (!clip.querySelector('picture')) video.style.opacity = '0';
     // Covered by the poster, the video still presents frames, so this fires
     // with a real frame on screen. A paused video presents its first frame
     // too, and the poster must stay when autoplay is refused, so a frame only
-    // counts once playback has started.
+    // counts once playback has started. The poster is looked up here, because
+    // an intro clip's can appear after a refused autoplay; the video then
+    // shows at once beneath it, so only one layer fades.
     const reveal = () => {
       if (video.paused) return video.requestVideoFrameCallback(reveal);
-      if (!poster) return;
-      poster.style.transition = 'opacity .2s';
-      poster.style.opacity = '0';
+      const poster = clip.querySelector('picture');
+      const cover = poster ?? video;
+      if (poster) video.style.opacity = '';
+      cover.style.transition = reducedMotion() ? '' : 'opacity .2s';
+      cover.style.opacity = poster ? '0' : '1';
     };
     video.requestVideoFrameCallback(reveal);
     clip.prepend(video);
@@ -226,9 +283,26 @@ export class MedkitVideoBg extends HTMLElement {
     for (const [clip, video] of this.videos) if (clip !== this.clip) video.pause();
     if (this.visible && !document.hidden && !this.userPaused) {
       // Autoplay can be refused (iOS Low Power Mode): the poster stays, and the
-      // button offers play, because update() reads video.paused.
-      this.load(this.clip)?.play().catch(() => this.update());
+      // button offers play, because update() reads video.paused. A pause()
+      // during play() rejects too, with AbortError, and must not show a poster.
+      const video = this.load(this.clip);
+      if (!video) this.showPoster();
+      else if (this.ready.has(video))
+        video.play().catch((e: DOMException) => {
+          if (e.name === 'NotAllowedError') this.showPoster();
+          this.update();
+        });
     } else this.video?.pause();
+  }
+
+  /**
+   * An intro clip's poster, held back in a `<noscript>` until no video will
+   * play. With scripting on, its content is text, so nothing was fetched. Only
+   * the poster's own wrapper is searched: an overlay may have a noscript too.
+   */
+  private showPoster() {
+    const held = this.clip.querySelector(':scope > div:first-of-type > noscript');
+    if (held) held.outerHTML = held.textContent ?? '';
   }
 
   /** Shows clip `n`; `manual` is a visitor's press, the only change that is announced. */
@@ -269,9 +343,14 @@ export class MedkitVideoBg extends HTMLElement {
     this.dispatchEvent(new CustomEvent('medkit-clipchange', { detail: { index: this.index, clip } }));
   }
 
+  /** Playing, or waiting to buffer with nobody having paused it. */
+  private get playing() {
+    const video = this.video;
+    return !!video && (!video.paused || (!this.ready.has(video) && !this.userPaused));
+  }
+
   private toggle() {
-    const paused = !this.video || this.video.paused;
-    this.userPaused = !paused;
+    this.userPaused = this.playing;
     this.remember(this.userPaused);
     this.sync();
     this.update();
@@ -307,7 +386,7 @@ export class MedkitVideoBg extends HTMLElement {
       button.setAttribute('aria-label', text);
       button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[icon]}"/></svg>`;
     };
-    const playing = !!this.video && !this.video.paused;
+    const playing = this.playing;
     const muted = this.video?.muted ?? true;
     set(pause, playing ? 'pause' : 'play', label(playing ? 'pause' : 'play'));
     set(sound, muted ? 'soundOff' : 'soundOn', label(muted ? 'soundOn' : 'soundOff'));
