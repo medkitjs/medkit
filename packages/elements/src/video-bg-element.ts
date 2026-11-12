@@ -244,8 +244,14 @@ export class MedkitVideoBg extends HTMLElement {
     clip.style.zIndex = '1';
     previous.style.zIndex = '';
     clip.style.opacity = '1';
-    const settle = () => (previous.style.opacity = '0');
-    if (clip.style.transition) clip.addEventListener('transitionend', settle, { once: true });
+    // Only the clip's own fade counts: its poster's fade ends inside it and
+    // bubbles up, and hiding the old clip then would show what is behind both.
+    const settle = (event?: Event) => {
+      if (event && event.target !== clip) return;
+      clip.removeEventListener('transitionend', settle);
+      previous.style.opacity = '0';
+    };
+    if (clip.style.transition) clip.addEventListener('transitionend', settle);
     else settle();
     previous.inert = true;
     clip.inert = false;
