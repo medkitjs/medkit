@@ -11,9 +11,12 @@
 //   dropping or tearing the box, which Firefox's does for a frame or two at a
 //   time (issue #4), and it is ignored. Measured over 36 runs: intact frames
 //   0.47–0.73 (lowest in WebKit, whose text the recording blurs most),
-//   dropped and torn ones 0.001–0.17. A tear below the heading would still
-//   count, and fail the run falsely; never pass it falsely. Among the frames that count, zero may
-//   be dark. So that ignoring frames cannot pass a run with no evidence, each
+//   dropped and torn ones 0.001–0.17. A tear just below the heading keeps
+//   the heading, so a dark frame counts as dark only when the strip of the box
+//   above the heading is dark too: an element showing black darkens the whole
+//   box, while a tear leaves its top showing the frame before (a Firefox CI
+//   artifact at 2.92 s, luma 35.2, was one). Among the frames that count, zero
+//   may be dark. So that ignoring frames cannot pass a run with no evidence, each
 //   poster→video switch needs 6 counted frames within ±140 ms of it, or the
 //   run fails as inconclusive. ±140 ms holds 7 frames at 25 fps; ±100 ms
 //   would hold only 5.
@@ -159,14 +162,17 @@ async function recording(page: Page, host: Locator) {
   // identical, so a bar that is mostly black would match a black frame. One
   // whole-pixel rectangle with even sides (ffmpeg's crop rounds odd ones),
   // for both the screenshot and the crop.
-  const text = await host.locator('medkit-clip:not([inert]) h2').evaluate((h2) => {
+  const { text, barTop } = await host.locator('medkit-clip:not([inert]) h2').evaluate((h2) => {
     const range = document.createRange();
     range.selectNodeContents(h2);
     const { x, y, width, height } = range.getBoundingClientRect();
-    return { x, y, width, height };
+    return { text: { x, y, width, height }, barTop: h2.getBoundingClientRect().top };
   });
   const even = (n: number) => Math.floor(n / 2) * 2;
   const heading = { x: Math.ceil(text.x), y: Math.ceil(text.y), width: even(text.width - 1), height: even(text.height - 1) };
+  // Above the heading's black bar, so the bar cannot darken it.
+  const strip = { x: box.x, y: box.y, width: even(box.width), height: even(barTop - box.y) };
+  expect(strip.height, 'a strip of the box above the heading, in px').toBeGreaterThanOrEqual(8);
   // From a separate page with no recording, opened only once the recorded one
   // is closed: a screenshot of the recorded page disturbed Chromium's
   // recording (an extra marker shade, twice), and a second page playing video
@@ -180,8 +186,9 @@ async function recording(page: Page, host: Locator) {
   await fresh.screenshot({ path: reference, clip: heading, scale: 'css' });
   await context.close();
   const file = await page.video()!.path();
-  const [boxes, headings, markers] = await Promise.all([
+  const [boxes, tops, headings, markers] = await Promise.all([
     measure(file, box),
+    measure(file, strip),
     similarity(file, heading, reference),
     measure(file, { x: VIEWPORT.width - 12, y: 4, width: 8, height: 8 }),
   ]);
@@ -200,7 +207,7 @@ async function recording(page: Page, host: Locator) {
     counted: counted.length,
     switches,
     thin: switches.filter((s) => counted.filter((f) => Math.abs(f.t - s) <= WINDOW).length < MIN_COUNTED),
-    dark: counted.filter((f) => f.YAVG <= DARK),
+    dark: counted.filter((f) => f.YAVG <= DARK && (tops[f.n]?.YAVG ?? 0) <= DARK),
   };
 }
 
