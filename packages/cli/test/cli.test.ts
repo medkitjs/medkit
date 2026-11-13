@@ -1,7 +1,8 @@
 // Covers the built `medkit` binary end to end, run as a child process: folder
 // processing, medkit.config.js and --out, exit codes, --concurrency checks,
-// duplicate ids, and --watch, including duplicate ids among new files. Runs
-// dist/, so run `pnpm build` first.
+// duplicate ids, --watch including duplicate ids among new files, and videos
+// with per-file options from medkit.config.js. Runs dist/, so run `pnpm build`
+// first; the video tests need ffmpeg on PATH.
 //
 // Not covered: what processImage writes for each file, which core's tests
 // cover, and whether concurrency actually overlaps jobs, which only timing
@@ -13,9 +14,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 const BIN = resolve(import.meta.dirname, '../dist/index.js');
+
+// Every test runs the binary on real images, encoding every format.
+vi.setConfig({ testTimeout: 30_000 });
 
 let dir: string;
 beforeEach(async () => {
@@ -27,9 +31,17 @@ afterEach(() => rm(dir, { recursive: true, force: true }));
 const image = (path: string) =>
   sharp({ create: { width: 64, height: 48, channels: 3, background: '#336699' } }).png().toFile(join(dir, path));
 
+/** A 3-second testsrc2 clip, encoded with the system ffmpeg. */
+const video = (path: string) =>
+  promisify(execFile)('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=30', '-t', '3', '-pix_fmt', 'yuv420p', join(dir, path)]);
+
 async function medkit(...args: string[]) {
+  return medkitWith(process.env, ...args);
+}
+
+async function medkitWith(env: NodeJS.ProcessEnv, ...args: string[]) {
   try {
-    const { stdout, stderr } = await promisify(execFile)(process.execPath, [BIN, ...args], { cwd: dir });
+    const { stdout, stderr } = await promisify(execFile)(process.execPath, [BIN, ...args], { cwd: dir, env });
     return { code: 0, stdout, stderr };
   } catch (error) {
     const { code, stdout, stderr } = error as { code: number; stdout: string; stderr: string };
@@ -49,7 +61,7 @@ test('every image in the folder, nested ones too, lands in the default outDir', 
   expect(code, stdout).toBe(0);
   expect(await exists('public/media/hero.json'), 'hero manifest').toBe(true);
   expect(await exists('public/media/logo.json'), 'nested logo manifest').toBe(true);
-  expect(stdout).toContain('2 of 2 images processed');
+  expect(stdout).toContain('2 of 2 files processed');
 });
 
 test('outDir comes from medkit.config.js, and --out overrides it', async () => {
@@ -127,6 +139,57 @@ test("--watch refuses a new image whose name another image already owns, and lea
   } finally {
     child.kill();
   }
+});
+
+test('a video is encoded with its per-file options from medkit.config.js', async () => {
+  await mkdir(join(dir, 'src/media/clips'));
+  await video('src/media/clips/hero.mp4');
+  await writeFile(
+    join(dir, 'medkit.config.js'),
+    `export default { video: { ladder: [180], files: { 'clips/hero.mp4': { trim: { start: 1, end: 2 }, ladder: [90] } } } };`,
+  );
+
+  const { code, stderr } = await medkit('process', 'src/media');
+
+  expect(code, stderr).toBe(0);
+  const manifest = JSON.parse(await readFile(join(dir, 'public/media/hero.json'), 'utf8'));
+  expect(manifest.duration).toBeCloseTo(1, 1);
+  expect(manifest.mp4.map((r: { src: string }) => r.src)).toEqual(['hero-90p.mp4']);
+  expect(await exists('public/media/hero-poster.json'), 'the poster manifest').toBe(true);
+});
+
+test('a video.files path that matches no video is refused before anything is written', async () => {
+  await video('src/media/hero.mp4');
+  await writeFile(join(dir, 'medkit.config.js'), `export default { video: { files: { 'hero.mov': { keepAudio: true } } } };`);
+
+  const { code, stderr } = await medkit('process', 'src/media');
+
+  expect(code).toBe(1);
+  expect(stderr).toContain('names "hero.mov", which is not a video');
+  expect(await exists('public/media'), 'output was written anyway').toBe(false);
+});
+
+test("an image named like a video's poster is refused, because both would write the same manifest", async () => {
+  await video('src/media/hero.mp4');
+  await image('src/media/hero-poster.png');
+
+  const { code, stderr } = await medkit('process', 'src/media');
+
+  expect(code).toBe(1);
+  expect(stderr).toContain('would both write "hero-poster"');
+});
+
+test('without ffmpeg, a folder with videos stops before writing anything and says how to install it; images alone still work', async () => {
+  const noFfmpeg = { ...process.env, PATH: join(dir, 'empty-path') };
+  await image('src/media/logo.png');
+  expect((await medkitWith(noFfmpeg, 'process', 'src/media')).code, 'images need no ffmpeg').toBe(0);
+
+  await video('src/media/hero.mp4');
+  const { code, stderr } = await medkitWith(noFfmpeg, 'process', 'src/media', '--out', 'second');
+
+  expect(code).toBe(1);
+  expect(stderr).toMatch(/needs ffmpeg and ffprobe.*Install it/);
+  expect(await exists('second'), 'output was written anyway').toBe(false);
 });
 
 async function until(check: () => boolean | Promise<boolean>, timeout = 10_000) {

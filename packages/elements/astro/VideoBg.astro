@@ -1,0 +1,11 @@
+---
+// <medkit-video-bg> for Astro; renders exactly what renderVideoBg() writes.
+// Props is defined in render-video.ts, where tsc checks it; this file is not
+// type-checked until Astro's checker supports TypeScript 7.
+import { renderVideoBg, type VideoBgProps } from '@medkitjs/elements';
+
+type Props = VideoBgProps;
+const { clips, ...options } = Astro.props;
+---
+
+<Fragment set:html={renderVideoBg(clips, options)} />

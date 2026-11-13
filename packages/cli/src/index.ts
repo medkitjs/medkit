@@ -2,17 +2,28 @@
 import { existsSync, watch } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, extname, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
-import { loadConfig, processImage } from '@medkitjs/core';
+import { checkFfmpeg, loadConfig, processImage, processVideo, videoOptionsFor } from '@medkitjs/core';
 
 const USAGE = `Usage: medkit process <dir> [--out <dir>] [--watch] [--concurrency <n>]
 
   --out          where files go; overrides outDir in medkit.config.js
-  --watch        keep running and process images as they change
-  --concurrency  images processed at once; default the smaller of 4 and the CPU count`;
+  --watch        keep running and process files as they change
+  --concurrency  files processed at once; default the smaller of 4 and the CPU count
+
+Video settings, defaults and per file, come from "video" in medkit.config.js.`;
 
 const IMAGE = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif', '.tif', '.tiff', '.gif']);
+const VIDEO = new Set(['.mp4', '.mov', '.m4v', '.webm', '.mkv']);
+
+const kind = (file: string) => (IMAGE.has(extname(file).toLowerCase()) ? 'image' : VIDEO.has(extname(file).toLowerCase()) ? 'video' : undefined);
+
+/** Every manifest id a file writes: its own, plus its poster's for a video. */
+function claims(file: string): string[] {
+  const id = basename(file, extname(file));
+  return kind(file) === 'video' ? [id, `${id}-poster`] : [id];
+}
 
 class UsageError extends Error {}
 
@@ -43,7 +54,7 @@ async function main(argv: string[]): Promise<number | undefined> {
   const outDir = values.out ? resolve(values.out) : config.outDir;
   const root = resolve(dir);
   const files = (await readdir(root, { recursive: true }))
-    .filter((f) => IMAGE.has(extname(f).toLowerCase()))
+    .filter((f) => kind(f))
     .map((f) => join(root, f))
     .sort();
 
@@ -51,21 +62,40 @@ async function main(argv: string[]): Promise<number | undefined> {
   // the same stem would overwrite each other's output without this check.
   const seen = new Map<string, string>();
   for (const file of files) {
-    const id = basename(file, extname(file));
-    const other = seen.get(id);
-    if (other) throw new Error(`${other} and ${file} would both write "${id}"; rename one`);
-    seen.set(id, file);
+    for (const id of claims(file)) {
+      const other = seen.get(id);
+      if (other) throw new Error(`${other} and ${file} would both write "${id}"; rename one`);
+      seen.set(id, file);
+    }
   }
 
-  const failed = await runAll(files, concurrency, (file) => processImage(file, { outDir }));
-  console.log(`medkit: ${files.length - failed} of ${files.length} images processed into ${outDir}`);
+  // Per-file video options name files by path; one that matches nothing is a
+  // typo that would otherwise silently encode with the defaults.
+  const videos = new Set(files.filter((f) => kind(f) === 'video').map((f) => posix(root, f)));
+  for (const key of Object.keys(config.video.files)) {
+    if (!videos.has(key)) throw new Error(`video.files in medkit.config.js names "${key}", which is not a video in ${root}`);
+  }
+  if (videos.size) {
+    const av1 = config.video.av1 || Object.values(config.video.files).some((f) => f.av1);
+    await checkFfmpeg(['libx264', ...(av1 ? ['libsvtav1'] : [])]);
+  }
+
+  const handle = (file: string) =>
+    kind(file) === 'video'
+      ? processVideo(file, { outDir, ...videoOptionsFor(config, posix(root, file)) })
+      : processImage(file, { outDir });
+  const failed = await runAll(files, concurrency, handle);
+  console.log(`medkit: ${files.length - failed} of ${files.length} files processed into ${outDir}`);
 
   if (values.watch) {
-    watchImages(root, outDir, seen);
+    watchFiles(root, seen, handle);
     return undefined;
   }
   return failed ? 1 : 0;
 }
+
+/** A path relative to the source folder, with `/` on every platform, as video.files keys are written. */
+const posix = (root: string, file: string) => relative(root, file).split(sep).join('/');
 
 /** Runs every job, at most `limit` at a time; one failure never stops the rest. Returns the number that failed. */
 async function runAll(files: string[], limit: number, job: (file: string) => Promise<unknown>): Promise<number> {
@@ -87,11 +117,11 @@ async function runAll(files: string[], limit: number, job: (file: string) => Pro
 }
 
 /** `seen` maps each id to the one file that owns it, as checked before the first run. */
-function watchImages(root: string, outDir: string, seen: Map<string, string>) {
+function watchFiles(root: string, seen: Map<string, string>, handle: (file: string) => Promise<unknown>) {
   const pending = new Map<string, NodeJS.Timeout>();
   console.log(`medkit: watching ${root}`);
   watch(root, { recursive: true }, (_, name) => {
-    if (!name || !IMAGE.has(extname(name).toLowerCase())) return;
+    if (!name || !kind(name)) return;
     const file = join(root, name);
     // Editors and copies fire several events per save; wait for them to settle.
     clearTimeout(pending.get(file));
@@ -99,19 +129,19 @@ function watchImages(root: string, outDir: string, seen: Map<string, string>) {
       file,
       setTimeout(() => {
         pending.delete(file);
-        const id = basename(file, extname(file));
-        const owner = seen.get(id);
+        const ids = claims(file);
         if (!existsSync(file)) {
-          if (owner === file) seen.delete(id);
+          for (const id of ids) if (seen.get(id) === file) seen.delete(id);
           return;
         }
-        // The owner may have been renamed or deleted without an event yet.
-        if (owner && owner !== file && existsSync(owner)) {
-          console.error(`medkit: ${owner} and ${file} would both write "${id}"; rename one. Skipped ${file}`);
+        // An owner may have been renamed or deleted without an event yet.
+        const clash = ids.find((id) => seen.get(id) && seen.get(id) !== file && existsSync(seen.get(id)!));
+        if (clash) {
+          console.error(`medkit: ${seen.get(clash)} and ${file} would both write "${clash}"; rename one. Skipped ${file}`);
           return;
         }
-        seen.set(id, file);
-        processImage(file, { outDir }).then(
+        for (const id of ids) seen.set(id, file);
+        handle(file).then(
           () => console.log(`medkit: processed ${file}`),
           (error: Error) => {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') console.error(`medkit: ${file}: ${error.message}`);

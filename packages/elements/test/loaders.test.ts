@@ -103,6 +103,6 @@ describe('CDN images', () => {
 test('a quote or newline in a loader URL cannot end the CSS string of the blur placeholder', () => {
   const loader = defineLoader((src) => `https://cdn.example.com/${src}`);
   const html = renderImage('a");}\nbody{x:url("y', { loader, alt: '', width: 100, height: 100 });
-  const style = /<picture style="([^"]*)"/.exec(html)![1].replace(/&quot;/g, '"');
+  const style = /<picture style="([^"]*)"/.exec(html)![1].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
   expect(style).toBe('display:block;background:url("https://cdn.example.com/a\\22 );}\\a body{x:url(\\22 y") center/cover no-repeat');
 });

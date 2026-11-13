@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import schema from '../../elements/dist/manifest.schema.json' with { type: 'json' };
-import { exactRatio } from '../src/image.js';
+import { exactRatio, makePlaceholder } from '../src/image.js';
 import { processImage } from '../src/index.js';
 
 const validate = new Ajv({ allErrors: true }).compile(schema);
@@ -33,13 +33,33 @@ function solid(width: number, height: number, background: { r: number; g: number
   return sharp({ create: { width, height, channels: 4, background } });
 }
 
-async function noise(width: number, height: number, path: string) {
+function noisePixels(width: number, height: number) {
   const data = Buffer.alloc(width * height * 3);
   for (let i = 0; i < data.length; i++) data[i] = Math.floor(Math.random() * 256);
-  await sharp(data, { raw: { width, height, channels: 3 } }).png().toFile(path);
+  return () => sharp(data, { raw: { width, height, channels: 3 } });
 }
 
-describe('processImage', () => {
+async function noise(width: number, height: number, path: string) {
+  await noisePixels(width, height)().png().toFile(path);
+}
+
+// The placeholder step alone, on raw pixels: no AVIF, WebP or JPEG encodes.
+describe('placeholder', () => {
+  test('a photo-sized noise image gets a WebP data URI of at most 600 characters', async () => {
+    const placeholder = await makePlaceholder(noisePixels(800, 600));
+    expect(placeholder).toMatch(/^data:image\/webp;base64,/);
+    expect(placeholder!.length).toBeLessThanOrEqual(600);
+  });
+
+  test('noise that no width or quality can fit in 600 characters gets no placeholder at all', async () => {
+    // Noise only 12px wide is never scaled down, so every placeholder width
+    // keeps all 144,000 noisy pixels, far past 600 characters at any quality.
+    expect(await makePlaceholder(noisePixels(12, 12000))).toBeUndefined();
+  });
+});
+
+// Real sharp encodes of every format; AVIF alone takes seconds on a CI runner.
+describe('processImage', { timeout: 30_000 }, () => {
   test('writes AVIF, WebP and JPEG at every width and a manifest that passes the schema', async () => {
     const input = join(dir, 'hero.jpg');
     await solid(1600, 900, { r: 29, g: 36, b: 51, alpha: 1 }).jpeg().toFile(input);
@@ -112,19 +132,8 @@ describe('processImage', () => {
     expect(Math.abs(r - 220) + Math.abs(g - 30) + Math.abs(b - 40), `dominant ${color}`).toBeLessThan(48);
   });
 
-  test('the blur placeholder is a WebP data URI of at most 600 characters', async () => {
-    const input = join(dir, 'photo.png');
-    await noise(800, 600, input);
-
-    const { placeholder } = await processImage(input, { outDir: dir });
-
-    expect(placeholder).toMatch(/^data:image\/webp;base64,/);
-    expect(placeholder!.length).toBeLessThanOrEqual(600);
-  });
-
   test('when no blur fits in 600 characters, the manifest keeps only the colour and the warning names the file', async () => {
-    // Noise only 12px wide is never scaled down, so every placeholder width
-    // keeps all 144,000 noisy pixels, far past 600 characters at any quality.
+    // The same 12px-wide noise the placeholder test proves cannot fit.
     const input = join(dir, 'strip.png');
     await noise(12, 12000, input);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

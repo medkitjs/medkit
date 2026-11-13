@@ -36,10 +36,13 @@ function manifest(id: string, width: number, height: number, widths: number[]): 
 const hero = manifest('hero', 1600, 900, [640, 1280, 1600]);
 const portrait = manifest('hero-portrait', 800, 1000, [480, 800]);
 
+const decode = (v: string) =>
+  v.replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
 /** Every `<tag …>` in the HTML, as attribute maps, with entities decoded. */
 function tags(html: string, name: string): Record<string, string>[] {
   return [...html.matchAll(new RegExp(`<${name}((?:\\s+[a-z-]+="[^"]*")*)\\s*>`, 'g'))].map(([, attrs]) =>
-    Object.fromEntries([...attrs.matchAll(/([a-z-]+)="([^"]*)"/g)].map(([, k, v]) => [k, v.replace(/&quot;/g, '"').replace(/&amp;/g, '&')])),
+    Object.fromEntries([...attrs.matchAll(/([a-z-]+)="([^"]*)"/g)].map(([, k, v]) => [k, decode(v)])),
   );
 }
 
@@ -161,7 +164,11 @@ describe('preloadTags', () => {
 });
 
 test('the React component renders exactly what renderImage() writes', () => {
-  for (const options of [{ alt: 'Crowd' }, { alt: '', priority: true, art: [{ media: '(max-width: 640px)', manifest: portrait }] }]) {
+  for (const options of [
+    { alt: 'Crowd' },
+    { alt: "Summer's <main> stage & \"crowd\"" },
+    { alt: '', priority: true, art: [{ media: '(max-width: 640px)', manifest: portrait }] },
+  ]) {
     expect(renderToStaticMarkup(createElement(Image, { manifest: hero, ...options }))).toBe(renderImage(hero, options));
   }
 });

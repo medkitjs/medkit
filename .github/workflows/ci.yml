@@ -29,6 +29,9 @@ jobs:
           node-version: ${{ matrix.node }}
           check-latest: true
           cache: pnpm
+      # Not on the runner image; Ubuntu's build has libx264 and libsvtav1.
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm lint
@@ -50,7 +53,18 @@ jobs:
           node-version: 24
           check-latest: true
           cache: pnpm
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
-      - run: pnpm test:e2e --project=${{ matrix.browser }}
+      # The gate project depends on the engine's project, so this runs both.
+      - run: pnpm test:e2e --project=${{ matrix.browser }}-gate
+      # The gate keeps a recording and its frames whenever a dark frame shows the
+      # overlay, in Firefox too, where that does not fail the run.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: dark-frames-${{ matrix.browser }}
+          path: test-results/**/dark-frame*
+          if-no-files-found: ignore

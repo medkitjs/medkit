@@ -1,18 +1,21 @@
 // Generates the fixture media before any browser test runs: source images
-// drawn here, processed by the built @medkitjs/core into examples/html/media/,
-// then rendered with renderImage() into examples/html/layout.html. Both are
-// git-ignored. Run `pnpm build` first.
+// drawn here and source videos generated with ffmpeg, processed by the built
+// @medkitjs/core into examples/html/media/, then rendered with renderImage()
+// and renderVideoBg() into layout.html and the video-bg pages. All of these
+// are git-ignored. Run `pnpm build` first; needs ffmpeg on PATH.
 //
 // The media folder is emptied first, so a local run sees exactly the files a
 // fresh CI checkout gets; a file left from an older pipeline once let a page
 // pass locally while it 404'd in CI.
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import sharp, { type Sharp } from 'sharp';
-import { processImage } from '@medkitjs/core';
-import { preloadTags, renderImage, type ImageManifest } from '@medkitjs/elements';
+import { processImage, processVideo } from '@medkitjs/core';
+import { preloadTags, renderImage, renderVideoBg, type ImageManifest, type VideoClip } from '@medkitjs/elements';
 
 export const MEDIA = resolve(import.meta.dirname, '../../examples/html/media');
 
@@ -39,6 +42,25 @@ export default async function setup() {
     await Promise.all(sources.map(([name, image]) => image.toFile(join(src, name))));
     const manifests = await Promise.all(sources.map(([name]) => processImage(join(src, name), { outDir: MEDIA })));
     await writeLayoutPage(Object.fromEntries(manifests.map((m) => [m.id, m])));
+
+    // testsrc2 changes every frame and has no all-black frame, so a black
+    // frame on screen can only come from the element, never from the clip.
+    const clip = (name: string, audio: boolean, seconds = 6) =>
+      promisify(execFile)('ffmpeg', [
+        '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=30',
+        ...(audio ? ['-f', 'lavfi', '-i', 'sine=frequency=440'] : []),
+        '-t', String(seconds), '-pix_fmt', 'yuv420p', join(src, name),
+      ]);
+    // short-a and short-b are under 5 seconds, so auto-advance tests run quickly.
+    await Promise.all([clip('bg.mp4', false), clip('talk.mp4', true), clip('short-a.mp4', false, 2.5), clip('short-b.mp4', false, 2.5)]);
+    const videos = await Promise.all([
+      processVideo(join(src, 'bg.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
+      processVideo(join(src, 'talk.mp4'), { outDir: MEDIA, ladder: [480, 720], keepAudio: true }),
+      processVideo(join(src, 'short-a.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
+      processVideo(join(src, 'short-b.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
+    ]);
+    const posters = await Promise.all(videos.map(async (v) => JSON.parse(await readFile(join(MEDIA, `${v.poster.id}.json`), 'utf8'))));
+    await writeVideoPages(Object.fromEntries(videos.map((video, i) => [video.id, { video, poster: posters[i] }])));
   } finally {
     await rm(src, { recursive: true, force: true });
   }
@@ -87,4 +109,59 @@ ${gallery}
 </html>
 `;
   await writeFile(resolve(MEDIA, '../layout.html'), html);
+}
+
+type Clip = Omit<VideoClip, 'title'>;
+
+const page = (title: string, body: string) => `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title}</title>
+    <!-- Inert unless the URL has ?debug; first, so it can wrap play() before the element runs. -->
+    <script type="module" src="/examples/html/debug.js"></script>
+    <script type="module" src="/packages/elements/dist/video-bg.js"></script>
+    <style>body { margin: 0; font: 16px/1.5 system-ui, sans-serif; } main { max-width: 1200px; margin: 0 auto; padding: 0 16px; } h2, a { color: #fff; background: #000; }
+      /* Black behind every background, as on many real pages, so a moment with neither poster nor video frame shows as dark. */
+      medkit-video-bg { background: #000; }</style>
+  </head>
+  <body>
+    <main>
+      <h1>${title}</h1>
+${body}
+    </main>
+  </body>
+</html>
+`;
+
+/** The video-bg pages, rendered by renderVideoBg() from the real manifests, so the tests run against real SSR output. */
+async function writeVideoPages(m: Record<string, Clip>) {
+  const baseUrl = '/examples/html/media/';
+  const overlay = (heading: string, title: string, id: string) => `<div style="padding: 16px"><h2>${heading}</h2><a href="#${id}">About ${title}</a></div>`;
+  const clip = (id: string, title: string, heading = title) => ({ ...m[id], title, overlay: overlay(heading, title, id) });
+  await writeFile(
+    resolve(MEDIA, '../video-bg.html'),
+    page(
+      'medkit-video-bg behaviour',
+      `      <div id="bg">${renderVideoBg([clip('bg', 'Summer on the river')], { baseUrl, priority: true })}</div>
+      <div style="height: 150vh"><p>Spacer, so the next background starts far below the fold.</p></div>
+      <div id="talk">${renderVideoBg([clip('talk', 'Test pattern with a tone')], { baseUrl, controls: 'pause sound expand' })}</div>`,
+    ),
+  );
+  await writeFile(
+    resolve(MEDIA, '../video-bg-playlist.html'),
+    page(
+      'medkit-video-bg playlist',
+      // One headline over rotating clips, as on many heroes; the M2 gate also
+      // needs it, comparing every recorded frame's heading with one reference.
+      `      <div id="list">${renderVideoBg([clip('bg', 'Test pattern', 'Test patterns'), clip('talk', 'Test pattern with a tone', 'Test patterns'), clip('short-a', 'Short clip A', 'Test patterns')], { baseUrl, controls: 'nav' })}</div>
+      <div id="auto">${renderVideoBg([clip('short-a', 'Short clip A'), clip('short-b', 'Short clip B')], { baseUrl, controls: 'pause nav', autoadvance: true })}</div>
+      <div id="short">${renderVideoBg([clip('short-b', 'Short clip B')], { baseUrl, controls: '' })}</div>`,
+    ),
+  );
+  await writeFile(
+    resolve(MEDIA, '../video-bg-intro.html'),
+    page('medkit-video-bg intro colour', `      <div id="intro">${renderVideoBg([clip('bg', 'Test pattern')], { baseUrl, priority: true, intro: '#3366cc' })}</div>`),
+  );
 }

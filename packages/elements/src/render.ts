@@ -43,14 +43,15 @@ export interface RenderImageOptions {
  */
 export type ImageProps = RenderImageOptions & { manifest: ImageManifest };
 
-function read(manifest: ImageManifest): ImageManifest {
+/** The manifest, or an error if it is a format version this medkit does not know. */
+export function read<M extends { v: number; id: string }>(manifest: M): M {
   if (manifest.v !== 1) {
     throw new Error(`medkit: manifest "${manifest.id}" has format version ${manifest.v}; this version of medkit reads only 1`);
   }
   return manifest;
 }
 
-const urls = (list: Rendition[], baseUrl: string) => list.map((r) => ({ url: baseUrl + r.src, width: r.width }));
+export const urls = (list: Rendition[], baseUrl: string) => list.map((r) => ({ url: baseUrl + r.src, width: r.width }));
 
 /** The `<picture>` that goes inside `<medkit-image>`; renderImage() wraps it. */
 export function renderPicture(manifest: ImageManifest, options: RenderImageOptions): string;

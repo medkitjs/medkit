@@ -88,12 +88,24 @@ export interface VideoManifest {
    * @exclusiveMinimum 0
    */
   duration: number;
-  audio: boolean;
+  /**
+   * The audio track's RFC 6381 codec string when the encode kept its audio
+   * (AAC-LC, the only one medkit writes), or `false` when it was removed.
+   * Every MP4 rendition and HLS variant carries the same track.
+   */
+  audio: false | 'mp4a.40.2';
   poster: {
     /** Id of the poster's own image manifest. */
     id: ManifestId;
-    placeholder: Placeholder;
+    /** Absent when no blur fits in 600 characters; readers fall back to `color`. */
+    placeholder?: Placeholder;
     color: HexColor;
+    /**
+     * Seconds into the clip the poster was taken from; absent for frame 0.
+     * Playback starts here, and loops return here.
+     * @exclusiveMinimum 0
+     */
+    at?: number;
   };
   /** @minItems 1 */
   mp4: VideoRendition[];

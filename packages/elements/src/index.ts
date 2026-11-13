@@ -5,3 +5,5 @@ export type { Loader } from './loaders.js';
 export { preloadTags, renderImage } from './render.js';
 export type { ArtSource, ImageProps, RenderImageOptions } from './render.js';
 export { DEFAULT_WIDTHS, pickWidths } from './widths.js';
+export { renderVideoBg } from './render-video.js';
+export type { RenderVideoBgOptions, VideoBgProps, VideoClip } from './render-video.js';

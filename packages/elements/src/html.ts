@@ -1,6 +1,12 @@
-/** Escapes a value for a double-quoted HTML attribute. */
+const ENTITIES: Record<string, string> = { '&': '&amp;', '"': '&quot;', "'": '&#x27;', '<': '&lt;', '>': '&gt;' };
+
+/**
+ * Escapes a value for a double-quoted HTML attribute. Only `&` and `"` are
+ * required there; `'`, `<` and `>` are escaped too because React escapes
+ * them, and the React components must render byte-identical markup.
+ */
 export function escapeAttr(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  return value.replace(/[&"'<>]/g, (c) => ENTITIES[c]);
 }
 
 /** An opening tag; `undefined` attributes are left out, every other value is escaped. */
@@ -28,6 +34,14 @@ export function fallback<T extends { width: number }>(candidates: T[]): T {
 
 const FITS = ['cover', 'contain', 'fill', 'none', 'scale-down'];
 const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+// A hex colour, a keyword, or one colour function with nothing inside that
+// could end it early: no `;`, quote, bracket or nested call.
+const COLOUR = /^(?:#[0-9a-f]{3,8}|[a-z]+|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([\w\s.,%/+-]*\))$/i;
+
+/** Checks an author's CSS colour that lands unquoted in a style attribute. */
+export function checkColour(name: string, value: string): void {
+  if (!COLOUR.test(value)) throw new Error(`medkit: ${name} "${value}" is not a CSS colour such as #000, black or rgb(0 0 0)`);
+}
 
 /**
  * Checks the two values that land in CSS unquoted, so neither can carry a `;`
