@@ -77,6 +77,22 @@ export interface ImageManifest {
   hash: Hash;
 }
 
+/**
+ * The files `<medkit-player>` plays for a video whose top-level set is a
+ * silent background: what a background's expand opens.
+ */
+export interface PlayerSet {
+  /** As the top-level `audio`. */
+  audio: false | 'mp4a.40.2';
+  /**
+   * H.264 only.
+   * @minItems 1
+   */
+  mp4: VideoRendition[];
+  /** Master playlist; absent when the set was processed without HLS. */
+  hls?: RelativePath;
+}
+
 export interface VideoManifest {
   v: ManifestVersion;
   id: ManifestId;
@@ -111,6 +127,8 @@ export interface VideoManifest {
   mp4: VideoRendition[];
   /** Master playlist; absent when the video was processed without HLS. */
   hls?: RelativePath;
+  /** Absent when the video was processed without a player set. */
+  player?: PlayerSet;
   hash: Hash;
 }
 
