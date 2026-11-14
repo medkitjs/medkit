@@ -135,12 +135,14 @@ test('during playback the bar fades after 2.5 seconds, never while focus is in i
   await page.waitForTimeout(3000);
   expect(await idle(), 'faded with focus on the play button').toBe(false);
   await page.locator('h1').click();
-  // The clip is 6 s long and the bar waits 2.5 s from this click, so without a
-  // restart the clip can end first on a slow runner, and a paused bar never fades.
-  await media(page).evaluate((v: HTMLVideoElement) => {
+  // The bar waits 2.5 s from this click, so without a restart the clip can end
+  // first on a slow runner, and a paused bar never fades.
+  const left = await media(page).evaluate(async (v: HTMLVideoElement) => {
     v.currentTime = 0;
-    return v.play();
+    await v.play();
+    return v.duration - v.currentTime;
   });
+  expect(left, 'seconds of the fixture clip left for the bar to fade in').toBeGreaterThanOrEqual(4);
   await expect.poll(idle, { timeout: 5000 }).toBe(true);
   await media(page).hover();
   await page.mouse.move(100, 300);
