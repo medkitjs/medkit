@@ -8,3 +8,5 @@ export type { ArtSource, ImageProps, RenderImageOptions } from './render.js';
 export { DEFAULT_WIDTHS, pickWidths } from './widths.js';
 export { renderVideoBg } from './render-video.js';
 export type { RenderVideoBgOptions, VideoBgProps, VideoClip } from './render-video.js';
+export { renderPlayer } from './render-player.js';
+export type { Caption, PlayerProps, PlayerVideo, RenderPlayerOptions } from './render-player.js';

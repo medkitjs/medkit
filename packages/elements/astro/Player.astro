@@ -1,0 +1,11 @@
+---
+// <medkit-player> for Astro; renders exactly what renderPlayer() writes.
+// Props is defined in render-player.ts, where tsc checks it; this file is not
+// type-checked until Astro's checker supports TypeScript 7.
+import { renderPlayer, type PlayerProps } from '@medkitjs/elements';
+
+type Props = PlayerProps;
+const { video, poster, title, ...options } = Astro.props;
+---
+
+<Fragment set:html={renderPlayer({ video, poster, title }, options)} />

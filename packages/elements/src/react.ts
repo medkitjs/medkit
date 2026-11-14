@@ -1,8 +1,9 @@
 import { createElement, type ReactNode } from 'react';
 import { renderPicture, type ImageProps } from './render.js';
 import { clipAttrs, hostAttrs, posterPicture, type VideoBgProps, type VideoClip } from './render-video.js';
+import { playerAttrs, playerVideo, type PlayerProps } from './render-player.js';
 
-export type { ImageProps };
+export type { ImageProps, PlayerProps };
 
 /** `<medkit-image>` for React and Next.js; renders exactly what renderImage() writes. */
 export function Image({ manifest, ...options }: ImageProps) {
@@ -38,4 +39,12 @@ export function VideoBg({ clips, ...options }: Omit<VideoBgProps, 'clips'> & { c
       ),
     ),
   );
+}
+
+/** `<medkit-player>` for React and Next.js; renders exactly what renderPlayer() writes. */
+export function Player({ video, poster, title, ...options }: PlayerProps) {
+  return createElement('medkit-player', {
+    ...styleObject(playerAttrs({ video, poster, title }, options)),
+    dangerouslySetInnerHTML: { __html: playerVideo({ video, poster }, options) },
+  });
 }
