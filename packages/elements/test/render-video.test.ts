@@ -11,6 +11,7 @@ import { describe, expect, test } from 'vitest';
 import type { ImageManifest, VideoManifest } from '../src/manifest.js';
 import { VideoBg } from '../src/react.js';
 import { renderVideoBg, type VideoClip } from '../src/render-video.js';
+import { renderPlayer } from '../src/render-player.js';
 
 const placeholder = 'data:image/webp;base64,UklGRhIAAABXRUJQVlA4IAYAAAAwAQCdASo=';
 
@@ -126,6 +127,15 @@ describe('renderVideoBg', () => {
     expect(attrs(renderVideoBg([clip('a')]), 'medkit-video-bg')[0], 'no labels, no attribute').not.toHaveProperty('labels');
   });
 
+  test("with expand, each clip carries its popup as renderPlayer() writes it, with captions and labels; without, nothing", () => {
+    const captions = [{ src: '/c.vtt', srclang: 'en', label: 'English' }];
+    const labels = { closePopup: 'Zatvori' };
+    const html = renderVideoBg([{ ...clip('a'), captions }], { controls: 'pause expand', labels, baseUrl: '/m/' });
+    const { player } = attrs(html, 'medkit-clip')[0];
+    expect(player).toBe(renderPlayer(clip('a'), { baseUrl: '/m/', captions, popup: true, labels }));
+    expect(attrs(renderVideoBg([clip('a')], { controls: 'pause' }), 'medkit-clip')[0]).not.toHaveProperty('player');
+  });
+
   test('bad input is refused rather than rendered half-right', () => {
     expect(() => renderVideoBg([]), 'no clips').toThrow(/at least one clip/);
     expect(() => renderVideoBg([{ ...clip('a'), title: '' }]), 'no title').toThrow(/needs a title/);
@@ -137,7 +147,7 @@ describe('renderVideoBg', () => {
 
 test('the React component renders exactly what renderVideoBg() writes', () => {
   const clips = [{ ...clip('a'), title: "Summer's \"night\"" }, clip('b', { audio: 'mp4a.40.2' })];
-  const options = { controls: 'pause nav', autoadvance: true, priority: true, intro: 'black', labels: { next: 'Sledeći "video"' } };
+  const options = { controls: 'pause nav expand', autoadvance: true, priority: true, intro: 'black', labels: { next: 'Sledeći "video"' } };
   const react = renderToStaticMarkup(
     createElement(VideoBg, { ...options, clips: [{ ...clips[0], overlay: createElement('h2', null, 'Hi & bye') }, clips[1]] }),
   );

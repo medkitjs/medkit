@@ -6,10 +6,13 @@
     "gzip": true
   },
   {
-    "name": "<medkit-video-bg>",
+    "name": "<medkit-video-bg>, excluding the player its expand loads",
     "path": "packages/elements/dist/video-bg.js",
     "limit": "4.5 KB",
-    "gzip": true
+    "gzip": true,
+    "ignore": [
+      "./expand.js"
+    ]
   },
   {
     "name": "<medkit-player>, excluding hls.js",

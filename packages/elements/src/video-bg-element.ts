@@ -368,19 +368,39 @@ export class MedkitVideoBg extends HTMLElement {
   }
 
   /**
-   * Hands the clip over to a player: pauses the background as if the visitor
-   * had (without remembering it), and tells the page which clip and where.
-   * Opening the popup and resuming afterwards come with <medkit-player>.
+   * Hands the clip over to the popup player: pauses the background as if the
+   * visitor had (without remembering it), tells the page which clip and
+   * where, and unless the page cancels that event, opens the popup there.
+   * When it closes, the background goes on from where the popup stopped,
+   * unless the visitor had paused it before.
    */
   private expand() {
-    const video = this.video;
+    const { video, clip } = this;
+    const was = this.userPaused;
     this.userPaused = true;
     this.sync();
     this.update();
-    this.dispatchEvent(
-      new CustomEvent('medkit-expand', {
-        detail: { index: this.index, clip: this.clip, src: this.clip.getAttribute('src'), currentTime: video?.currentTime ?? 0 },
-      }),
+    const currentTime = video?.currentTime ?? 0;
+    const go = this.dispatchEvent(
+      new CustomEvent('medkit-expand', { cancelable: true, detail: { index: this.index, clip, src: clip.getAttribute('src'), currentTime } }),
+    );
+    if (!go) return;
+    import('./expand.js').then(({ expand }) =>
+      expand(clip, currentTime, this.buttons.expand).addEventListener(
+        'medkit-popupclose',
+        (e) => {
+          const resume = () => {
+            this.userPaused = was;
+            this.sync();
+            this.update();
+          };
+          if (!video) return resume();
+          // Playing before the seek lands sometimes started WebKit from 0.
+          video.addEventListener('seeked', resume, { once: true });
+          video.currentTime = (e as CustomEvent).detail.currentTime;
+        },
+        { once: true },
+      ),
     );
   }
 

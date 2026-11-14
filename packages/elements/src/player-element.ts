@@ -119,6 +119,8 @@ export class MedkitPlayer extends HTMLElement {
   private dialog?: HTMLDialogElement;
   private thumb?: HTMLButtonElement;
   private pageOverflow = '';
+  /** Where focus returns when the popup closes: the thumbnail, or whatever opened it. */
+  private opener?: HTMLElement;
   /** A facade's iframe, made when it opens. */
   private frame?: () => HTMLIFrameElement;
 
@@ -352,12 +354,14 @@ export class MedkitPlayer extends HTMLElement {
   }
 
   /**
-   * Opens the popup and plays, from `at` seconds when given. A popup's
-   * thumbnail calls this; so does a background's expand.
+   * Opens the popup and plays, from `at` seconds when given; focus returns to
+   * `opener` on close, the thumbnail by default. A popup's thumbnail calls
+   * this; so does a background's expand.
    */
-  open(at?: number) {
+  open(at?: number, opener?: HTMLElement) {
     const { dialog, media } = this;
     if (!dialog || dialog.open) return;
+    this.opener = opener;
     const frame = this.frame?.();
     if (frame) dialog.prepend(frame);
     else if (at !== undefined) media.currentTime = at;
@@ -385,7 +389,7 @@ export class MedkitPlayer extends HTMLElement {
     else this.media.pause();
     document.documentElement.style.overflow = this.pageOverflow;
     if (document.fullscreenElement === this.dialog) document.exitFullscreen();
-    this.thumb!.focus();
+    (this.opener ?? this.thumb!).focus();
     this.dispatchEvent(new CustomEvent('medkit-popupclose', { detail: { currentTime: this.media?.currentTime } }));
   }
 

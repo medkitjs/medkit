@@ -10,6 +10,7 @@ import { checkColour, checkCss, fallback, srcset, tag } from './html.js';
 import type { ImageManifest, VideoManifest } from './manifest.js';
 import type { Labels } from './strings.js';
 import { read, urls } from './render.js';
+import { renderPlayer, type Caption } from './render-player.js';
 
 export interface VideoClip {
   video: VideoManifest;
@@ -19,6 +20,8 @@ export interface VideoClip {
   title: string;
   /** HTML shown over the clip, such as a heading and a link; trusted, not escaped. */
   overlay?: string;
+  /** Caption tracks for the popup that `expand` opens. */
+  captions?: Caption[];
 }
 
 export interface RenderVideoBgOptions {
@@ -61,7 +64,7 @@ export function hostAttrs(clips: Pick<VideoClip, 'video'>[], { controls = 'pause
 }
 
 /** One `<medkit-clip>`'s attributes, in the order React writes them. */
-export function clipAttrs({ video, poster, title }: Omit<VideoClip, 'overlay'>, i: number, { baseUrl = '/media/' }: RenderVideoBgOptions) {
+export function clipAttrs({ video, poster, title, captions }: Omit<VideoClip, 'overlay'>, i: number, { baseUrl = '/media/', controls = 'pause', labels }: RenderVideoBgOptions) {
   const v = read(video);
   if (typeof title !== 'string' || !title) throw new Error(`medkit: clip "${v.id}" needs a title, which is announced`);
   if (read(poster).id !== v.poster.id) throw new Error(`medkit: clip "${v.id}" was given poster "${poster.id}", not "${v.poster.id}"`);
@@ -76,6 +79,9 @@ export function clipAttrs({ video, poster, title }: Omit<VideoClip, 'overlay'>, 
     sources: JSON.stringify(
       v.mp4.map((r) => ({ src: baseUrl + r.src, width: r.width, height: r.height, codec: r.codec, kbps: Math.ceil((r.bytes * 8) / v.duration / 1000) })),
     ),
+    // The popup expand opens, as renderPlayer() writes it: the manifest's
+    // player set with sound when it has one. Read only on expand.
+    player: controls.split(/\s+/).includes('expand') ? renderPlayer({ video, poster, title }, { baseUrl, captions, popup: true, labels }) : undefined,
     // Only the first clip shows with no JavaScript; the element shows the rest.
     hidden: i ? '' : undefined,
     style: 'display:block;position:absolute;inset:0',
