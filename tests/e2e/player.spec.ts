@@ -2,7 +2,8 @@
 // the control bar replacing native controls, every control's name and size,
 // the keyboard map and that it applies only with focus inside, the seek bar's
 // spoken value, captions, speed, mute and volume, the bar hiding during
-// playback and when it never does, fullscreen, and audio mode.
+// playback and when it never does, fullscreen, audio mode, and the development
+// build's warning for a video with sound and no captions.
 //
 // Not covered here: picture-in-picture beyond its button (headless browsers
 // differ in whether they grant it), iPhone's native fullscreen fallback (the
@@ -157,4 +158,17 @@ test('around <audio> the bar is compact and always shown, with no fullscreen or 
   await page.locator('h1').click();
   await page.waitForTimeout(3000);
   expect(await host(page, 'audio').locator('[part=controls]').evaluate((b) => b.classList.contains('idle'))).toBe(false);
+});
+
+test('the development build warns about a video with sound and no captions track, and only about that one', async ({ page }) => {
+  const warnings: string[] = [];
+  page.on('console', (m) => m.type() === 'warning' && warnings.push(m.text()));
+  // Both pages load player.js; here it hands over to the development build.
+  await page.route('**/packages/elements/dist/player.js', (route) => route.fulfill({ contentType: 'text/javascript', body: "import './player-dev.js';" }));
+  await page.goto('/examples/html/player.html');
+  await expect(button(page, 'Play')).toBeVisible();
+  expect(warnings.filter((w) => w.includes('no captions')), 'warnings on a page whose videos all have captions').toEqual([]);
+  await page.goto('/examples/html/player-hls.html');
+  await expect(button(page, 'Play')).toBeVisible();
+  await expect.poll(() => warnings.filter((w) => w.includes('a video with sound and no captions track')).length).toBe(1);
 });

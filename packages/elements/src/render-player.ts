@@ -82,6 +82,8 @@ export function playerAttrs(source: PlayerSource, { baseUrl = '/media/', popup, 
   return {
     title,
     duration: v.duration,
+    // Read by the development build, which warns when a video with sound has no captions.
+    sound: set.audio ? '' : undefined,
     popup: popup ? '' : undefined,
     hls: set.hls && baseUrl + set.hls,
     // Sizes and codecs, so the element can pick a rendition by size without

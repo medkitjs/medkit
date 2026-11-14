@@ -52,7 +52,12 @@
     },
     "./player": {
       "types": "./dist/player.d.ts",
+      "development": "./dist/player-dev.js",
       "default": "./dist/player.js"
+    },
+    "./player-dev": {
+      "types": "./dist/player-dev.d.ts",
+      "default": "./dist/player-dev.js"
     },
     "./hls": {
       "types": "./dist/hls.d.ts",
