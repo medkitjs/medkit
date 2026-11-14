@@ -171,7 +171,7 @@ async function writeVideoPages(m: Record<string, Clip>) {
 
 const vtt = (lines: string[]) => `WEBVTT\n\n${lines.map((line, i) => `00:00:0${i}.000 --> 00:00:0${i + 1}.000\n${line}`).join('\n\n')}\n`;
 
-/** The player page: the talk clip's player set with captions, and an audio player. */
+/** The player pages: the talk clip's player set with captions and an audio player, and the same with hls.js opted in. */
 async function writePlayerPage(m: Record<string, Clip>) {
   const baseUrl = '/examples/html/media/';
   await writeFile(resolve(MEDIA, 'talk.en.vtt'), vtt(['One', 'Two', 'Three', 'Four', 'Five', 'Six']));
@@ -186,6 +186,15 @@ async function writePlayerPage(m: Record<string, Clip>) {
       'medkit-player behaviour',
       `      <div id="inline" style="max-width: 800px">${renderPlayer({ ...m.talk, title: 'Test pattern with a tone' }, { baseUrl, captions })}</div>
       <div id="audio" style="max-width: 800px"><medkit-player title="A tone"><audio controls preload="none" src="${baseUrl}${m.talk.video.mp4[0].src}"></audio></medkit-player></div>`,
+      'player',
+    ),
+  );
+  await writeFile(
+    resolve(MEDIA, '../player-hls.html'),
+    page(
+      'medkit-player with hls.js opted in',
+      `      <script type="module" src="/packages/elements/dist/hls.js"></script>
+      <div id="inline" style="max-width: 800px">${renderPlayer({ ...m.talk, title: 'Test pattern with a tone' }, { baseUrl })}</div>`,
       'player',
     ),
   );

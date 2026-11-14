@@ -54,6 +54,10 @@
       "types": "./dist/player.d.ts",
       "default": "./dist/player.js"
     },
+    "./hls": {
+      "types": "./dist/hls.d.ts",
+      "default": "./dist/hls.js"
+    },
     "./manifest.schema.json": "./dist/manifest.schema.json",
     "./react": {
       "types": "./dist/react.d.ts",
@@ -72,19 +76,24 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "astro": "^7.4.9",
+    "hls.js": "^1.7.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "ts-json-schema-generator": "^2.9.0"
   },
   "peerDependencies": {
     "astro": ">=5",
-    "react": ">=19"
+    "react": ">=19",
+    "hls.js": ">=1.5"
   },
   "peerDependenciesMeta": {
     "astro": {
       "optional": true
     },
     "react": {
+      "optional": true
+    },
+    "hls.js": {
       "optional": true
     }
   },

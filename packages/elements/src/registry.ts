@@ -7,6 +7,8 @@ export const registry: {
   loaders: Record<string, Loader>;
   labels: Record<string, string>;
   locales: Record<string, Record<string, string>>;
+  /** Loads hls.js: its module, or its default export. */
+  hls?: () => Promise<unknown>;
 } = { loaders: Object.create(null), labels: Object.create(null), locales: Object.create(null) };
 
 /** Elements waiting for a loader; configure() runs each once. */

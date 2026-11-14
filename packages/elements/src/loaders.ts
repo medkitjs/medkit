@@ -49,9 +49,13 @@ export const imagekit = ({ urlEndpoint }: { urlEndpoint: string }) =>
  * default, and named ones for a `loader="name"` attribute. Elements already on
  * the page that were waiting for a loader render now. `labels` overrides the
  * English labels of every element; a key it leaves out keeps its default.
+ * `hls` loads hls.js for `<medkit-player>` where there is no bundler, such as
+ * `() => import('https://…/hls.mjs')`; it runs only when an HLS source is
+ * played in a browser without native HLS.
  */
-export function configure(options: { loader?: Loader; loaders?: Record<string, Loader>; labels?: Labels }): void {
+export function configure(options: { loader?: Loader; loaders?: Record<string, Loader>; labels?: Labels; hls?: () => Promise<unknown> }): void {
   if (options.loader) registry.loader = options.loader;
+  if (options.hls) registry.hls = options.hls;
   Object.assign(registry.loaders, options.loaders);
   Object.assign(registry.labels, options.labels);
   for (const render of [...pending]) render();

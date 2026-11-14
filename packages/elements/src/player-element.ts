@@ -1,3 +1,4 @@
+import { registry } from './registry.js';
 import { label as text } from './strings.js';
 
 /**
@@ -33,6 +34,25 @@ const ICONS = {
 };
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+/** The part of hls.js the player uses, so its types are not needed to build. */
+interface Hls {
+  new (config: { startPosition: number }): {
+    on(event: string, listener: (event: string, data: { fatal: boolean }) => void): void;
+    loadSource(url: string): void;
+    attachMedia(media: HTMLMediaElement): void;
+    destroy(): void;
+  };
+  isSupported(): boolean;
+  Events: { ERROR: string };
+}
+
+/** One MP4 rendition, as renderPlayer() writes it into the `sources` attribute. */
+interface Source {
+  src: string;
+  width: number;
+  codec: string;
+}
 
 // The bar sits on a soft dark backdrop, so white icons keep 3:1 over any
 // video; the focus ring is white on a black halo for the same reason.
@@ -79,6 +99,7 @@ export class MedkitPlayer extends HTMLElement {
   private tracks: TextTrack[] = [];
   /** The track C turns back on: the last one shown, else the first. */
   private lastTrack = 0;
+  private prepared = false;
 
   connectedCallback() {
     if (this.shadowRoot) return;
@@ -177,8 +198,62 @@ export class MedkitPlayer extends HTMLElement {
 
   toggle() {
     const media = this.media;
-    if (media.paused) media.play().catch(() => {});
-    else media.pause();
+    if (!media.paused) return media.pause();
+    const play = () => media.play().catch(() => {});
+    // play() stays inside the tap unless hls.js has to load first; iOS, which
+    // counts only a play() inside the tap, plays HLS natively.
+    const waiting = this.prepare();
+    if (waiting) waiting.then(play);
+    else play();
+  }
+
+  /**
+   * Chooses what to play, once, at the first play: native HLS where the
+   * browser has it (the first `<source>`), else HLS through a registered
+   * hls.js, else the smallest MP4 that covers the player's width. Done at
+   * play, not on connect, so a popup measures its dialog, not its thumbnail.
+   */
+  private prepare(): Promise<void> | void {
+    const video = this.media;
+    const hls = this.getAttribute('hls');
+    if (this.prepared || video.localName !== 'video') return;
+    this.prepared = true;
+    const at = video.currentTime;
+    if (hls && video.canPlayType('application/vnd.apple.mpegurl')) return;
+    if (!hls || !registry.hls) return this.pickMp4(at);
+    const fallback = (why: unknown) => {
+      console.warn('medkit: HLS could not play; playing MP4 instead', why);
+      this.pickMp4(video.currentTime || at);
+    };
+    return registry.hls().then((mod) => {
+      const Hls = ((mod as { default?: Hls }).default ?? mod) as Hls;
+      if (!Hls.isSupported()) return this.pickMp4(at);
+      const player = new Hls({ startPosition: at });
+      player.on(Hls.Events.ERROR, (_, data) => {
+        if (!data.fatal) return;
+        player.destroy();
+        fallback(data);
+        video.play().catch(() => {});
+      });
+      player.loadSource(hls);
+      player.attachMedia(video);
+    }, fallback);
+  }
+
+  private pickMp4(at: number) {
+    const video = this.media;
+    let sources: Source[] = [];
+    try {
+      sources = JSON.parse(this.getAttribute('sources') || '[]');
+    } catch {
+      console.warn('medkit: <medkit-player> sources is not JSON; playing the <source> list');
+    }
+    const playable = sources.filter((s) => video.canPlayType(`video/mp4; codecs="${s.codec}"`)).sort((a, b) => a.width - b.width);
+    const need = this.clientWidth * devicePixelRatio;
+    const pick = playable.find((s) => s.width >= need) ?? playable.at(-1);
+    if (!pick) return;
+    video.src = pick.src;
+    video.currentTime = at;
   }
 
   private showCaptions(index: number) {

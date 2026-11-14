@@ -159,6 +159,7 @@ examples/html/video-bg.html
 examples/html/video-bg-playlist.html
 examples/html/video-bg-intro.html
 examples/html/player.html
+examples/html/player-hls.html
 
 # Temporary files
 tmp/*
