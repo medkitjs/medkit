@@ -55,7 +55,15 @@ export interface RenderPlayerOptions {
   labels?: Labels;
   /** How wide a YouTube or Vimeo thumbnail displays; default `100vw`. */
   sizes?: string;
+  /**
+   * Play only the sound, as an `<audio>` with the compact bar, in a box of
+   * exactly the bar's height so the page does not move when it upgrades.
+   */
+  audio?: boolean;
 }
+
+/** The audio bar's height: one 44 px control row plus 4 px padding above and below. */
+const AUDIO_HEIGHT = 'height:52px';
 
 export type PlayerSource = PlayerVideo | PlayerEmbed;
 export type PlayerProps = RenderPlayerOptions & PlayerSource;
@@ -67,7 +75,7 @@ const isEmbed = (source: PlayerSource): source is PlayerEmbed => 'provider' in s
 const crossOrigin = (src: string) => /^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(src);
 
 /** The `<medkit-player>` element's own attributes, in the order React writes them. */
-export function playerAttrs(source: PlayerSource, { baseUrl = '/media/', popup, labels }: RenderPlayerOptions) {
+export function playerAttrs(source: PlayerSource, { baseUrl = '/media/', popup, labels, audio }: RenderPlayerOptions) {
   const { title } = source;
   if (isEmbed(source)) {
     const { provider, id } = source;
@@ -79,6 +87,11 @@ export function playerAttrs(source: PlayerSource, { baseUrl = '/media/', popup, 
   const v = read(source.video);
   if (typeof title !== 'string' || !title) throw new Error(`medkit: player "${v.id}" needs a title, which names its popup`);
   const set = v.player ?? v;
+  if (audio) {
+    if (!set.audio) throw new Error(`medkit: player "${v.id}" has no audio track to play as audio`);
+    if (popup) throw new Error(`medkit: player "${v.id}" cannot be both audio and a popup`);
+    return { title, duration: v.duration, sound: '', labels: labels && JSON.stringify(labels), style: `display:block;position:relative;${AUDIO_HEIGHT}` };
+  }
   return {
     title,
     duration: v.duration,
@@ -98,7 +111,7 @@ export function playerAttrs(source: PlayerSource, { baseUrl = '/media/', popup, 
  * What goes inside `<medkit-player>`: a `<video controls>` that works with no
  * JavaScript, or for YouTube and Vimeo a link to the video around its thumbnail.
  */
-export function playerInner(source: PlayerSource, { baseUrl = '/media/', captions = [], sizes }: RenderPlayerOptions) {
+export function playerInner(source: PlayerSource, { baseUrl = '/media/', captions = [], sizes, audio: soundOnly }: RenderPlayerOptions) {
   if (isEmbed(source)) {
     const picture = renderPicture(source.poster, { alt: source.title, baseUrl, sizes });
     return tag('a', { href: WATCH[source.provider] + source.id, style: 'display:block' }) + picture + '</a>';
@@ -111,6 +124,12 @@ export function playerInner(source: PlayerSource, { baseUrl = '/media/', caption
   // With no JavaScript the browser plays the first source it can: HLS where
   // it plays HLS itself, else an MP4 no wider than 1280 px.
   const mp4 = [...set.mp4].sort((a, b) => a.width - b.width);
+  if (soundOnly) {
+    // Every rendition carries the same sound track; the smallest costs least.
+    let html = tag('audio', { controls: '', preload: 'none', style: `display:block;width:100%;${AUDIO_HEIGHT}` });
+    for (const r of mp4) html += tag('source', { src: baseUrl + r.src, type: `video/mp4; codecs="${r.codec}${audio}"` });
+    return html + '</audio>';
+  }
   const first = fallback(mp4);
   let html = tag('video', {
     controls: '',

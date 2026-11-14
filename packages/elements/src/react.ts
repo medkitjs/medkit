@@ -43,8 +43,8 @@ export function VideoBg({ clips, ...options }: Omit<VideoBgProps, 'clips'> & { c
 
 /** `<medkit-player>` for React and Next.js; renders exactly what renderPlayer() writes. */
 export function Player(props: PlayerProps) {
-  const { baseUrl, captions, popup, labels, sizes, ...source } = props;
-  const options = { baseUrl, captions, popup, labels, sizes };
+  const { baseUrl, captions, popup, labels, sizes, audio, ...source } = props;
+  const options = { baseUrl, captions, popup, labels, sizes, audio };
   return createElement('medkit-player', {
     ...styleObject(playerAttrs(source as PlayerSource, options)),
     dangerouslySetInnerHTML: { __html: playerInner(source as PlayerSource, options) },

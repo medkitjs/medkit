@@ -150,6 +150,20 @@ test('fullscreen puts the whole player on screen, controls included, and the but
   await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBe(null);
 });
 
+test('an audio player from renderPlayer() moves nothing when it upgrades', async ({ browser }) => {
+  // From the player's own top, so a change above it cannot count here.
+  const below = async (javaScriptEnabled: boolean) => {
+    const context = await browser.newContext({ javaScriptEnabled });
+    const page = await context.newPage();
+    await page.goto(PAGE);
+    if (javaScriptEnabled) await expect(button(page, 'Play', 'audio')).toBeVisible();
+    const y = await page.evaluate(() => document.querySelector('#after-audio')!.getBoundingClientRect().top - document.querySelector('#audio')!.getBoundingClientRect().top);
+    await context.close();
+    return y;
+  };
+  expect(Math.abs((await below(true)) - (await below(false))), 'px the text after the audio player moved').toBeLessThanOrEqual(0.5);
+});
+
 test('around <audio> the bar is compact and always shown, with no fullscreen or picture-in-picture', async ({ page }) => {
   await expect(button(page, 'Play', 'audio')).toBeVisible();
   await expect(button(page, 'Full screen', 'audio')).toHaveCount(0);

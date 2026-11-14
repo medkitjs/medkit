@@ -189,7 +189,8 @@ async function writePlayerPage(m: Record<string, Clip>) {
     page(
       'medkit-player behaviour',
       `      <div id="inline" style="max-width: 800px">${renderPlayer({ ...m.talk, title: 'Test pattern with a tone' }, { baseUrl, captions })}</div>
-      <div id="audio" style="max-width: 800px"><medkit-player title="A tone"><audio controls preload="none" src="${baseUrl}${m.talk.video.mp4[0].src}"></audio></medkit-player></div>
+      <div id="audio" style="max-width: 800px">${renderPlayer({ ...m.talk, title: 'A tone' }, { baseUrl, audio: true })}</div>
+      <p id="after-audio">After the audio player, so a change in its height moves this.</p>
       <div id="popup" style="max-width: 400px">${renderPlayer({ ...m.talk, title: 'Talk in a popup' }, { baseUrl, captions, popup: true })}</div>
       <p id="after">After the popup's thumbnail, so a change in its size moves this.</p>
       <div style="height: 150vh"></div>`,

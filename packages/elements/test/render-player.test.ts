@@ -128,3 +128,21 @@ test('the React component renders a facade exactly as renderPlayer() does', () =
   const s = { provider: 'vimeo' as const, id: '76979871', title: `A "film"`, poster: thumbnail('vimeo-76979871') };
   expect(renderToStaticMarkup(createElement(Player, { ...s, popup: true, sizes: '50vw' }))).toBe(renderPlayer(s, { popup: true, sizes: '50vw' }));
 });
+
+test('as audio, the sound plays from the smallest rendition in a box exactly the bar\'s height, so the page does not move', () => {
+  const html = renderPlayer(source({ player }), { audio: true, baseUrl: '/m/' });
+  expect(attrs(html, 'medkit-player')[0]).toEqual({ title: 'A talk', duration: '14.2', sound: '', style: 'display:block;position:relative;height:52px' });
+  expect(attrs(html, 'audio')[0]).toEqual({ controls: '', preload: 'none', style: 'display:block;width:100%;height:52px' });
+  expect(attrs(html, 'source').map((s) => s.src)).toEqual(['/m/talk-player-720p.mp4', '/m/talk-player-1080p.mp4']);
+  expect(html).not.toContain('<video');
+});
+
+test('audio is refused for a set with no sound, and together with popup', () => {
+  expect(() => renderPlayer(source(), { audio: true }), 'silent set').toThrow(/has no audio track/);
+  expect(() => renderPlayer(source({ player }), { audio: true, popup: true }), 'audio popup').toThrow(/both audio and a popup/);
+});
+
+test('the React component renders an audio player exactly as renderPlayer() does', () => {
+  const s = source({ player });
+  expect(renderToStaticMarkup(createElement(Player, { ...s, audio: true }))).toBe(renderPlayer(s, { audio: true }));
+});

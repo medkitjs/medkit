@@ -5,7 +5,7 @@
 import { renderPlayer, type PlayerProps } from '@medkitjs/elements';
 
 type Props = PlayerProps;
-const { baseUrl, captions, popup, labels, sizes, ...source } = Astro.props;
+const { baseUrl, captions, popup, labels, sizes, audio, ...source } = Astro.props;
 ---
 
-<Fragment set:html={renderPlayer(source, { baseUrl, captions, popup, labels, sizes })} />
+<Fragment set:html={renderPlayer(source, { baseUrl, captions, popup, labels, sizes, audio })} />
