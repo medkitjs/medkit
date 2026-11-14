@@ -1,7 +1,8 @@
 // Generates the fixture media before any browser test runs: source images
 // drawn here and source videos generated with ffmpeg, processed by the built
 // @medkitjs/core into examples/html/media/, then rendered with renderImage()
-// and renderVideoBg() into layout.html and the video-bg pages. All of these
+// renderVideoBg() and renderPlayer() into layout.html, the video-bg pages and
+// the player page, with two caption files. All of these
 // are git-ignored. Run `pnpm build` first; needs ffmpeg on PATH.
 //
 // The media folder is emptied first, so a local run sees exactly the files a
@@ -15,7 +16,7 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import sharp, { type Sharp } from 'sharp';
 import { processImage, processVideo } from '@medkitjs/core';
-import { preloadTags, renderImage, renderVideoBg, type ImageManifest, type VideoClip } from '@medkitjs/elements';
+import { preloadTags, renderImage, renderPlayer, renderVideoBg, type ImageManifest, type VideoClip } from '@medkitjs/elements';
 
 export const MEDIA = resolve(import.meta.dirname, '../../examples/html/media');
 
@@ -55,12 +56,14 @@ export default async function setup() {
     await Promise.all([clip('bg.mp4', false), clip('talk.mp4', true), clip('short-a.mp4', false, 2.5), clip('short-b.mp4', false, 2.5)]);
     const videos = await Promise.all([
       processVideo(join(src, 'bg.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
-      processVideo(join(src, 'talk.mp4'), { outDir: MEDIA, ladder: [480, 720], keepAudio: true }),
+      processVideo(join(src, 'talk.mp4'), { outDir: MEDIA, ladder: [480, 720], keepAudio: true, player: { ladder: [480, 720] } }),
       processVideo(join(src, 'short-a.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
       processVideo(join(src, 'short-b.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
     ]);
     const posters = await Promise.all(videos.map(async (v) => JSON.parse(await readFile(join(MEDIA, `${v.poster.id}.json`), 'utf8'))));
-    await writeVideoPages(Object.fromEntries(videos.map((video, i) => [video.id, { video, poster: posters[i] }])));
+    const clips = Object.fromEntries(videos.map((video, i) => [video.id, { video, poster: posters[i] }]));
+    await writeVideoPages(clips);
+    await writePlayerPage(clips);
   } finally {
     await rm(src, { recursive: true, force: true });
   }
@@ -113,7 +116,7 @@ ${gallery}
 
 type Clip = Omit<VideoClip, 'title'>;
 
-const page = (title: string, body: string) => `<!doctype html>
+const page = (title: string, body: string, element = 'video-bg') => `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -121,7 +124,7 @@ const page = (title: string, body: string) => `<!doctype html>
     <title>${title}</title>
     <!-- Inert unless the URL has ?debug; first, so it can wrap play() before the element runs. -->
     <script type="module" src="/examples/html/debug.js"></script>
-    <script type="module" src="/packages/elements/dist/video-bg.js"></script>
+    <script type="module" src="/packages/elements/dist/${element}.js"></script>
     <style>body { margin: 0; font: 16px/1.5 system-ui, sans-serif; } main { max-width: 1200px; margin: 0 auto; padding: 0 16px; } h2, a { color: #fff; background: #000; }
       /* Black behind every background, as on many real pages, so a moment with neither poster nor video frame shows as dark. */
       medkit-video-bg { background: #000; }</style>
@@ -163,5 +166,27 @@ async function writeVideoPages(m: Record<string, Clip>) {
   await writeFile(
     resolve(MEDIA, '../video-bg-intro.html'),
     page('medkit-video-bg intro colour', `      <div id="intro">${renderVideoBg([clip('bg', 'Test pattern')], { baseUrl, priority: true, intro: '#3366cc' })}</div>`),
+  );
+}
+
+const vtt = (lines: string[]) => `WEBVTT\n\n${lines.map((line, i) => `00:00:0${i}.000 --> 00:00:0${i + 1}.000\n${line}`).join('\n\n')}\n`;
+
+/** The player page: the talk clip's player set with captions, and an audio player. */
+async function writePlayerPage(m: Record<string, Clip>) {
+  const baseUrl = '/examples/html/media/';
+  await writeFile(resolve(MEDIA, 'talk.en.vtt'), vtt(['One', 'Two', 'Three', 'Four', 'Five', 'Six']));
+  await writeFile(resolve(MEDIA, 'talk.sr.vtt'), vtt(['Jedan', 'Dva', 'Tri', 'Četiri', 'Pet', 'Šest']));
+  const captions = [
+    { src: `${baseUrl}talk.en.vtt`, srclang: 'en', label: 'English' },
+    { src: `${baseUrl}talk.sr.vtt`, srclang: 'sr-Latn', label: 'Srpski' },
+  ];
+  await writeFile(
+    resolve(MEDIA, '../player.html'),
+    page(
+      'medkit-player behaviour',
+      `      <div id="inline" style="max-width: 800px">${renderPlayer({ ...m.talk, title: 'Test pattern with a tone' }, { baseUrl, captions })}</div>
+      <div id="audio" style="max-width: 800px"><medkit-player title="A tone"><audio controls preload="none" src="${baseUrl}${m.talk.video.mp4[0].src}"></audio></medkit-player></div>`,
+      'player',
+    ),
   );
 }

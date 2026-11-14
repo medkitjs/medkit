@@ -24,7 +24,7 @@ test('the fixture page loads every element module without an error', async ({ pa
 });
 
 // image-dev.html is left out: its images are broken on purpose.
-for (const path of ['', 'image.html', 'image-cdn.html', 'video-bg.html', 'video-bg-playlist.html', 'video-bg-intro.html']) {
+for (const path of ['', 'image.html', 'image-cdn.html', 'video-bg.html', 'video-bg-playlist.html', 'video-bg-intro.html', 'player.html']) {
   test(`/examples/html/${path} has no WCAG 2.2 AA violations`, async ({ page }) => {
     await page.goto(`/examples/html/${path}`);
     const { violations } = await new AxeBuilder({ page })
@@ -35,7 +35,7 @@ for (const path of ['', 'image.html', 'image-cdn.html', 'video-bg.html', 'video-
 }
 
 // image.html's missing.jpg is broken on purpose, to test the broken-image path.
-for (const path of ['', 'image.html', 'image-dev.html', 'image-cdn.html', 'layout.html', 'video-bg.html', 'video-bg-playlist.html', 'video-bg-intro.html']) {
+for (const path of ['', 'image.html', 'image-dev.html', 'image-cdn.html', 'layout.html', 'video-bg.html', 'video-bg-playlist.html', 'video-bg-intro.html', 'player.html']) {
   test(`/examples/html/${path} requests no file that does not exist`, async ({ page }) => {
     const missing: string[] = [];
     page.on('response', (response) => {
