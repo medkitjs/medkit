@@ -29,6 +29,19 @@
 //   frame fails, in every engine, which catches a one-frame flash the
 //   recording could miss.
 //
+// A frame showing neither poster nor video records as dark in Chromium and
+// Firefox, where the fixture's black behind the element shows through, but as
+// blank white in WebKit: its recorder never captures what lay under the video
+// and poster layers when they turn transparent, though a screenshot of the
+// same moment is black. So a counted frame fails when it is dark, or blank
+// (box and the strip above the heading both at luma 200 or more; testsrc2
+// averages about 115, its top strip about 126).
+//
+// A last test hides the element's own video and poster behind an intact
+// overlay, the failure the gate exists for, and expects the recording check to
+// find it in Chromium and WebKit, so a change to this file or the fixture that
+// leaves a gate unable to fail fails here instead. It found the WebKit blank.
+//
 // Any dark frame with the overlay visible, in any engine and enforced or not,
 // keeps the recording and the frames as PNGs in the test's output folder, which
 // CI uploads, and prints a warning.
@@ -117,6 +130,7 @@ type Box = { x: number; y: number; width: number; height: number };
 type Frame = Record<string, number>;
 
 const DARK = 40;
+const BLANK = 200;
 const OVERLAY_SSIM = 0.3;
 // Generous: the start rule may wait 5 s for buffering, on a machine under load.
 const POSTER_GONE = { message: 'the poster faded', timeout: 15_000 };
@@ -207,7 +221,10 @@ async function recording(page: Page, host: Locator) {
     counted: counted.length,
     switches,
     thin: switches.filter((s) => counted.filter((f) => Math.abs(f.t - s) <= WINDOW).length < MIN_COUNTED),
-    dark: counted.filter((f) => f.YAVG <= DARK && (tops[f.n]?.YAVG ?? 0) <= DARK),
+    dark: counted.filter((f) => {
+      const top = tops[f.n]?.YAVG;
+      return top !== undefined && ((f.YAVG <= DARK && top <= DARK) || (f.YAVG >= BLANK && top >= BLANK));
+    }),
   };
 }
 
@@ -226,7 +243,7 @@ async function keepDarkFrames(file: string, dark: Frame[], browserName: string) 
   for (const f of dark.slice(0, 10)) {
     await promisify(execFile)('ffmpeg', ['-v', 'error', '-y', '-i', file, '-vf', `select=eq(n\\,${f.n})`, '-frames:v', '1', info.outputPath(`dark-frame-${f.t.toFixed(2)}s.png`)]);
   }
-  const message = `${dark.length} dark frame(s) with the overlay visible in ${browserName}, at ${describeFrames(dark).join(', ')}; recording and frames kept in ${dirname(info.outputPath('x'))}`;
+  const message = `${dark.length} dark or blank frame(s) with the overlay visible in ${browserName}, at ${describeFrames(dark).join(', ')}; recording and frames kept in ${dirname(info.outputPath('x'))}`;
   console.warn(process.env.CI ? `::warning title=video-bg gate::${message}` : `WARNING: ${message}`);
 }
 
@@ -235,14 +252,14 @@ async function expectNoDarkFrame(page: Page, host: Locator, fades: Report, minFr
   const r = await recording(page, host);
   if (r.dark.length) await keepDarkFrames(r.file, r.dark, browserName);
   if (browserName === 'firefox') {
-    const verdict = r.dark.length ? `dark: ${describeFrames(r.dark).join(', ')}` : r.thin.length ? `inconclusive at ${r.thin.join(', ')} s` : 'no dark frame';
+    const verdict = r.dark.length ? `dark or blank: ${describeFrames(r.dark).join(', ')}` : r.thin.length ? `inconclusive at ${r.thin.join(', ')} s` : 'no dark or blank frame';
     console.log(`Firefox recording, not enforced: ${verdict}; ${r.switches.length} of ${fades.fades} switches found, ${r.counted} of ${r.frames} frames counted`);
     return;
   }
   expect(r.frames, 'recorded frames').toBeGreaterThan(minFrames);
   expect(r.switches.length, 'marker shades in the recording, one per poster fade').toBe(fades.fades);
   expect(r.thin, `inconclusive: switches (s) with fewer than ${MIN_COUNTED} frames showing the overlay within ±${WINDOW * 1000} ms`).toEqual([]);
-  expect(describeFrames(r.dark), `dark frames with the overlay visible, of ${r.counted} counted and ${r.frames} recorded`).toEqual([]);
+  expect(describeFrames(r.dark), `dark or blank frames with the overlay visible, of ${r.counted} counted and ${r.frames} recorded`).toEqual([]);
 }
 
 test('the hero background goes from poster to video without a dark frame', async ({ page, browserName }) => {
@@ -261,6 +278,24 @@ test('the hero background goes from poster to video without a dark frame', async
   expect(fades.fades, 'no poster fade was seen').toBe(1);
   expect(fades.early, 'posters that faded before their video painted a playing frame').toBe(0);
   await expectNoDarkFrame(page, host, fades, 20, browserName);
+});
+
+test('the recording check fails a background showing neither poster nor video behind an intact overlay', async ({ page, browserName }) => {
+  await page.goto('/examples/html/video-bg.html');
+  const host = page.locator('#bg medkit-video-bg');
+  await expect.poll(() => page.locator('#bg picture').evaluate((p) => getComputedStyle(p).opacity), POSTER_GONE).toBe('0');
+  await page.evaluate(() => {
+    for (const el of document.querySelectorAll<HTMLElement>('#bg video, #bg picture')) el.style.setProperty('opacity', '0', 'important');
+  });
+  await page.waitForTimeout(1000);
+
+  const r = await recording(page, host);
+  if (browserName === 'firefox') {
+    console.log(`Firefox recording, not enforced: ${r.dark.length} of ${r.counted} counted frames dark or blank with video and poster hidden`);
+    return;
+  }
+  // 1 s at 25 fps is 25 frames; allow for the frames before the layer lands.
+  expect(r.dark.length, `dark or blank frames found with video and poster hidden, of ${r.counted} counted`).toBeGreaterThanOrEqual(15);
 });
 
 test('switching clips crossfades without a dark frame', async ({ page, browserName }) => {
