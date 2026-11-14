@@ -1,7 +1,7 @@
 // Covers processVideo with real ffmpeg runs on short clips generated here: the
 // H.264 ladder, optional AV1, keyframes, faststart, audio and metadata
 // stripping, codec strings, trim and posterAt, the poster, HLS packaging, the
-// cache, orphan cleanup, and the bitrate cap per rung. Needs ffmpeg 6+ with libx264 and libsvtav1 on
+// player set beside a silent background, the cache, orphan cleanup, and the bitrate cap per rung. Needs ffmpeg 6+ with libx264 and libsvtav1 on
 // PATH, and `pnpm build` (manifests are checked against the built schema).
 //
 // Not covered: visual quality, which no assertion here can judge, and large
@@ -203,6 +203,24 @@ describe('processVideo', { timeout: 60_000 }, () => {
     expect(variant).toContain('#EXT-X-MAP:URI="180p_init.mp4"');
     const durations = [...variant.matchAll(/#EXTINF:([\d.]+)/g)].map((m) => Number(m[1]));
     expect(durations, 'about 4-second segments').toEqual([4, 4, 1]);
+  });
+
+  test('a player set keeps the sound and its own HLS beside a silent background, from one decode', async () => {
+    const input = await clip('hero.mp4', { seconds: 5, audio: true });
+    const manifest = await processVideo(input, { outDir: dir, ladder: [90], player: { ladder: [180] } });
+
+    expect(validate(manifest), JSON.stringify(validate.errors)).toBe(true);
+    expect(manifest.audio, 'the background stays silent').toBe(false);
+    expect(manifest.hls, 'the background has no HLS of its own').toBeUndefined();
+    expect(manifest.player).toMatchObject({ audio: 'mp4a.40.2', hls: 'hero-player/master.m3u8', mp4: [{ src: 'hero-player-180p.mp4', height: 180 }] });
+    const streams = (await probe(join(dir, 'hero-player-180p.mp4'), '-show_streams')).streams.map((s: { codec_type: string }) => s.codec_type);
+    expect(streams, 'tracks in the player MP4').toEqual(['video', 'audio']);
+    expect(await readFile(join(dir, 'hero-player/master.m3u8'), 'utf8')).toContain('mp4a.40.2');
+    expect(await readFile(join(dir, 'hero-player/180p.m3u8'), 'utf8'), 'a single variant names its own init segment').toContain('#EXT-X-MAP:URI="180p_init.mp4"');
+
+    await processVideo(input, { outDir: dir, ladder: [90] });
+    expect(await readdir(dir), 'player files the rewritten manifest no longer lists').not.toContain('hero-player-180p.mp4');
+    expect(await readdir(join(dir, 'hero-player'))).toEqual([]);
   });
 
   test('a second run with the same file and options reuses every output', async () => {

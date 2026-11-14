@@ -1,9 +1,11 @@
-// A debug panel for the medkit-video-bg fixture pages, for checks on a real
-// phone: add ?debug to a page's URL. The pages tests/e2e/setup.ts writes load
-// it; it is a fixture tool, in no published package. It shows each
-// background's chosen rendition, poster estimate, readyState and buffer, and a
-// timestamped log of media events, play() rejections, and the likely reason
-// for each pause or resume; Copy puts it all on the clipboard. It watches from
+// A debug panel for the medkit-video-bg and medkit-player fixture pages, for
+// checks on a real phone: add ?debug to a page's URL. The pages
+// tests/e2e/setup.ts writes load it; it is a fixture tool, in no published
+// package. It shows each background's chosen rendition, poster estimate,
+// readyState and buffer, each player's source and the fullscreen and
+// picture-in-picture paths the device offers, and a timestamped log of media
+// events, play() rejections, popups, and the likely reason for each pause or
+// resume; Copy puts it all on the clipboard. It watches from
 // outside the element and never changes what it does, except that play() is
 // wrapped to log its rejections, which the element catches. Without ?debug it
 // does nothing at all.
@@ -13,8 +15,12 @@ if (new URLSearchParams(location.search).has('debug')) {
   const log = [];
   const stamp = () => (performance.now() / 1000).toFixed(3).padStart(8);
   const base = (url) => (url ? url.split('/').pop() : '(none)');
-  const hostId = (el) => el.closest('medkit-video-bg')?.parentElement?.id ?? '?';
-  const who = (v) => `${hostId(v)}/${v.closest('medkit-clip')?.getAttribute('src') ?? '?'}`;
+  // A popup that a background's expand made sits in <body>: named by its title.
+  const hostId = (el) => {
+    const host = el.closest('medkit-video-bg, medkit-player');
+    return host?.parentElement?.id || (host ? `${host.localName} "${host.getAttribute('title')}"` : '?');
+  };
+  const who = (v) => `${hostId(v)}/${v.closest('medkit-clip')?.getAttribute('src') ?? v.localName}`;
   // The element's own measure: the end of the last buffered range past the current time.
   const ahead = (v) => {
     const b = v.buffered;
@@ -96,7 +102,9 @@ if (new URLSearchParams(location.search).has('debug')) {
     lastClipChange = performance.now();
     add(hostId(e.target), `clipchange to ${e.detail.index + 1}`);
   }, true);
-  for (const type of ['medkit-play', 'medkit-pause', 'medkit-expand']) document.addEventListener(type, (e) => add(hostId(e.target), type), true);
+  for (const type of ['medkit-play', 'medkit-pause', 'medkit-expand', 'medkit-popupopen', 'medkit-popupclose', 'fullscreenchange', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitbeginfullscreen', 'webkitendfullscreen']) {
+    document.addEventListener(type, (e) => add(e.target === document ? `fullscreen ${document.fullscreenElement?.localName ?? 'none'}` : hostId(e.target), type), true);
+  }
 
   const watchVideo = (v) => {
     add(who(v), `video created, rendition ${base(v.src)}`);
@@ -120,6 +128,7 @@ if (new URLSearchParams(location.search).has('debug')) {
     if (root.localName === 'video' && root.closest('medkit-video-bg')) watchVideo(root);
     if (root.localName === 'picture' && root.closest('medkit-clip') && document.readyState !== 'loading') add(hostId(root), 'poster shown (intro noscript parsed)');
     for (const v of root.querySelectorAll('medkit-video-bg video')) watchVideo(v);
+    for (const p of root.localName === 'medkit-player' ? [root] : root.querySelectorAll('medkit-player')) add(hostId(p), `player ${p.getAttribute('provider') ?? 'media'}${p.hasAttribute('popup') ? ', popup' : ''}`);
   };
   for (const host of document.querySelectorAll('medkit-video-bg')) {
     watchHost(host);
@@ -162,6 +171,15 @@ if (new URLSearchParams(location.search).has('debug')) {
       `dpr ${devicePixelRatio}  viewport ${innerWidth}×${innerHeight}  reduced motion ${matchMedia('(prefers-reduced-motion: reduce)').matches}  ` +
         (c ? `downlink ${c.downlink} Mbps  type ${c.effectiveType}  saveData ${c.saveData}` : 'navigator.connection: none'),
     ];
+    const anyVideo = document.createElement('video');
+    lines.push(
+      `native HLS ${anyVideo.canPlayType('application/vnd.apple.mpegurl') || 'no'}  element fullscreen ${document.fullscreenEnabled}  video fullscreen ${'webkitEnterFullscreen' in anyVideo}  PiP ${document.pictureInPictureEnabled}`,
+    );
+    for (const p of document.querySelectorAll('medkit-player')) {
+      const m = p.querySelector('video, audio');
+      lines.push('', `${hostId(p)}  box ${p.clientWidth}×${p.clientHeight}  hls ${base(p.getAttribute('hls')) ?? '-'}`);
+      if (m) lines.push(`  ${base(m.currentSrc)} ${m.videoWidth ?? ''}×${m.videoHeight ?? ''}  ${state(m)}  paused ${m.paused}  muted ${m.muted}  volume ${m.volume}  rate ${m.playbackRate}`);
+    }
     for (const host of document.querySelectorAll('medkit-video-bg')) {
       const r = ratios.get(host);
       lines.push('', `#${hostId(host)}  box ${host.clientWidth}×${host.clientHeight} (×dpr ${Math.round(host.clientWidth * devicePixelRatio)}×${Math.round(host.clientHeight * devicePixelRatio)})  ${r === undefined ? '' : Math.round(r * 100) + '% visible'}`);

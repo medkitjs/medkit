@@ -1,12 +1,15 @@
 // Covers the built `medkit` binary end to end, run as a child process: folder
 // processing, medkit.config.js and --out, exit codes, --concurrency checks,
-// duplicate ids, --watch including duplicate ids among new files, and videos
-// with per-file options from medkit.config.js. Runs dist/, so run `pnpm build`
+// duplicate ids, --watch including duplicate ids among new files, videos
+// with per-file options from medkit.config.js, and the thumbnail command's
+// arguments. Runs dist/, so run `pnpm build`
 // first; the video tests need ffmpeg on PATH.
 //
 // Not covered: what processImage writes for each file, which core's tests
 // cover, and whether concurrency actually overlaps jobs, which only timing
-// could show and timing tests flake.
+// could show and timing tests flake. thumbnail's fetching is covered in core
+// with a fake fetch; here only what is refused before any request, so no test
+// depends on YouTube or Vimeo.
 
 import { execFile, spawn } from 'node:child_process';
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -103,6 +106,17 @@ test('a bad --concurrency, an unknown flag or a missing folder argument exit wit
     expect(code, args.join(' ')).toBe(2);
     expect(stderr, args.join(' ')).toContain('Usage: medkit process');
   }
+});
+
+test('thumbnail takes youtube:<id> or vimeo:<id>, and refuses an id that could change the URL before any request', async () => {
+  for (const args of [['thumbnail'], ['thumbnail', 'dailymotion:x2abc']]) {
+    const { code, stderr } = await medkit(...args);
+    expect(code, args.join(' ')).toBe(2);
+    expect(stderr, args.join(' ')).toContain('medkit thumbnail <youtube:id | vimeo:id>');
+  }
+  const { code, stderr } = await medkit('thumbnail', 'youtube:../../x?y');
+  expect(code).toBe(1);
+  expect(stderr).toContain('"../../x?y" is not a youtube video id');
 });
 
 test('--watch processes an image added after it started', async () => {

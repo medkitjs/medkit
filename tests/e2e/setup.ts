@@ -1,7 +1,8 @@
 // Generates the fixture media before any browser test runs: source images
 // drawn here and source videos generated with ffmpeg, processed by the built
 // @medkitjs/core into examples/html/media/, then rendered with renderImage()
-// and renderVideoBg() into layout.html and the video-bg pages. All of these
+// renderVideoBg() and renderPlayer() into layout.html, the video-bg pages and
+// the player page, with two caption files. All of these
 // are git-ignored. Run `pnpm build` first; needs ffmpeg on PATH.
 //
 // The media folder is emptied first, so a local run sees exactly the files a
@@ -15,7 +16,7 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import sharp, { type Sharp } from 'sharp';
 import { processImage, processVideo } from '@medkitjs/core';
-import { preloadTags, renderImage, renderVideoBg, type ImageManifest, type VideoClip } from '@medkitjs/elements';
+import { preloadTags, renderImage, renderPlayer, renderVideoBg, type ImageManifest, type VideoClip } from '@medkitjs/elements';
 
 export const MEDIA = resolve(import.meta.dirname, '../../examples/html/media');
 
@@ -42,6 +43,10 @@ export default async function setup() {
     await Promise.all(sources.map(([name, image]) => image.toFile(join(src, name))));
     const manifests = await Promise.all(sources.map(([name]) => processImage(join(src, name), { outDir: MEDIA })));
     await writeLayoutPage(Object.fromEntries(manifests.map((m) => [m.id, m])));
+    // Stand-ins for `medkit thumbnail` output, made here so no test fetches from YouTube or Vimeo.
+    await gradient(1280, 720, '#7c2d12', '#1d2433').jpeg().toFile(join(src, 'thumb.jpg'));
+    const thumbs = await Promise.all(['youtube-dQw4w9WgXcQ', 'vimeo-76979871'].map((id) => processImage(join(src, 'thumb.jpg'), { outDir: MEDIA, id })));
+    await writeEmbedPage(thumbs);
 
     // testsrc2 changes every frame and has no all-black frame, so a black
     // frame on screen can only come from the element, never from the clip.
@@ -55,12 +60,14 @@ export default async function setup() {
     await Promise.all([clip('bg.mp4', false), clip('talk.mp4', true), clip('short-a.mp4', false, 2.5), clip('short-b.mp4', false, 2.5)]);
     const videos = await Promise.all([
       processVideo(join(src, 'bg.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
-      processVideo(join(src, 'talk.mp4'), { outDir: MEDIA, ladder: [480, 720], keepAudio: true }),
+      processVideo(join(src, 'talk.mp4'), { outDir: MEDIA, ladder: [480, 720], keepAudio: true, player: { ladder: [480, 720] } }),
       processVideo(join(src, 'short-a.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
       processVideo(join(src, 'short-b.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
     ]);
     const posters = await Promise.all(videos.map(async (v) => JSON.parse(await readFile(join(MEDIA, `${v.poster.id}.json`), 'utf8'))));
-    await writeVideoPages(Object.fromEntries(videos.map((video, i) => [video.id, { video, poster: posters[i] }])));
+    const clips = Object.fromEntries(videos.map((video, i) => [video.id, { video, poster: posters[i] }]));
+    await writeVideoPages(clips);
+    await writePlayerPage(clips);
   } finally {
     await rm(src, { recursive: true, force: true });
   }
@@ -113,7 +120,7 @@ ${gallery}
 
 type Clip = Omit<VideoClip, 'title'>;
 
-const page = (title: string, body: string) => `<!doctype html>
+const page = (title: string, body: string, element = 'video-bg') => `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -121,7 +128,7 @@ const page = (title: string, body: string) => `<!doctype html>
     <title>${title}</title>
     <!-- Inert unless the URL has ?debug; first, so it can wrap play() before the element runs. -->
     <script type="module" src="/examples/html/debug.js"></script>
-    <script type="module" src="/packages/elements/dist/video-bg.js"></script>
+    <script type="module" src="/packages/elements/dist/${element}.js"></script>
     <style>body { margin: 0; font: 16px/1.5 system-ui, sans-serif; } main { max-width: 1200px; margin: 0 auto; padding: 0 16px; } h2, a { color: #fff; background: #000; }
       /* Black behind every background, as on many real pages, so a moment with neither poster nor video frame shows as dark. */
       medkit-video-bg { background: #000; }</style>
@@ -163,5 +170,54 @@ async function writeVideoPages(m: Record<string, Clip>) {
   await writeFile(
     resolve(MEDIA, '../video-bg-intro.html'),
     page('medkit-video-bg intro colour', `      <div id="intro">${renderVideoBg([clip('bg', 'Test pattern')], { baseUrl, priority: true, intro: '#3366cc' })}</div>`),
+  );
+}
+
+const vtt = (lines: string[]) => `WEBVTT\n\n${lines.map((line, i) => `00:00:0${i}.000 --> 00:00:0${i + 1}.000\n${line}`).join('\n\n')}\n`;
+
+/** The player pages: the talk clip's player set with captions, an audio player and a popup, and the same with hls.js opted in. */
+async function writePlayerPage(m: Record<string, Clip>) {
+  const baseUrl = '/examples/html/media/';
+  await writeFile(resolve(MEDIA, 'talk.en.vtt'), vtt(['One', 'Two', 'Three', 'Four', 'Five', 'Six']));
+  await writeFile(resolve(MEDIA, 'talk.sr.vtt'), vtt(['Jedan', 'Dva', 'Tri', 'Četiri', 'Pet', 'Šest']));
+  const captions = [
+    { src: `${baseUrl}talk.en.vtt`, srclang: 'en', label: 'English' },
+    { src: `${baseUrl}talk.sr.vtt`, srclang: 'sr-Latn', label: 'Srpski' },
+  ];
+  await writeFile(
+    resolve(MEDIA, '../player.html'),
+    page(
+      'medkit-player behaviour',
+      `      <div id="inline" style="max-width: 800px">${renderPlayer({ ...m.talk, title: 'Test pattern with a tone' }, { baseUrl, captions })}</div>
+      <div id="audio" style="max-width: 800px">${renderPlayer({ ...m.talk, title: 'A tone' }, { baseUrl, audio: true })}</div>
+      <p id="after-audio">After the audio player, so a change in its height moves this.</p>
+      <div id="popup" style="max-width: 400px">${renderPlayer({ ...m.talk, title: 'Talk in a popup' }, { baseUrl, captions, popup: true })}</div>
+      <p id="after">After the popup's thumbnail, so a change in its size moves this.</p>
+      <div style="height: 150vh"></div>`,
+      'player',
+    ),
+  );
+  await writeFile(
+    resolve(MEDIA, '../player-hls.html'),
+    page(
+      'medkit-player with hls.js opted in',
+      `      <script type="module" src="/packages/elements/dist/hls.js"></script>
+      <div id="inline" style="max-width: 800px">${renderPlayer({ ...m.talk, title: 'Test pattern with a tone' }, { baseUrl })}</div>`,
+      'player',
+    ),
+  );
+}
+
+/** The YouTube and Vimeo facades, inline and in a popup, rendered by renderPlayer(). */
+async function writeEmbedPage([youtube, vimeo]: ImageManifest[]) {
+  const baseUrl = '/examples/html/media/';
+  await writeFile(
+    resolve(MEDIA, '../player-embed.html'),
+    page(
+      'medkit-player YouTube and Vimeo facades',
+      `      <div id="youtube" style="max-width: 640px">${renderPlayer({ provider: 'youtube', id: 'dQw4w9WgXcQ', title: 'A YouTube video', poster: youtube }, { baseUrl, sizes: '640px' })}</div>
+      <div id="vimeo" style="max-width: 400px">${renderPlayer({ provider: 'vimeo', id: '76979871', title: 'A Vimeo video', poster: vimeo }, { baseUrl, sizes: '400px', popup: true })}</div>`,
+      'player',
+    ),
   );
 }
