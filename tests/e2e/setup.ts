@@ -43,6 +43,10 @@ export default async function setup() {
     await Promise.all(sources.map(([name, image]) => image.toFile(join(src, name))));
     const manifests = await Promise.all(sources.map(([name]) => processImage(join(src, name), { outDir: MEDIA })));
     await writeLayoutPage(Object.fromEntries(manifests.map((m) => [m.id, m])));
+    // Stand-ins for `medkit thumbnail` output, made here so no test fetches from YouTube or Vimeo.
+    await gradient(1280, 720, '#7c2d12', '#1d2433').jpeg().toFile(join(src, 'thumb.jpg'));
+    const thumbs = await Promise.all(['youtube-dQw4w9WgXcQ', 'vimeo-76979871'].map((id) => processImage(join(src, 'thumb.jpg'), { outDir: MEDIA, id })));
+    await writeEmbedPage(thumbs);
 
     // testsrc2 changes every frame and has no all-black frame, so a black
     // frame on screen can only come from the element, never from the clip.
@@ -198,6 +202,20 @@ async function writePlayerPage(m: Record<string, Clip>) {
       'medkit-player with hls.js opted in',
       `      <script type="module" src="/packages/elements/dist/hls.js"></script>
       <div id="inline" style="max-width: 800px">${renderPlayer({ ...m.talk, title: 'Test pattern with a tone' }, { baseUrl })}</div>`,
+      'player',
+    ),
+  );
+}
+
+/** The YouTube and Vimeo facades, inline and in a popup, rendered by renderPlayer(). */
+async function writeEmbedPage([youtube, vimeo]: ImageManifest[]) {
+  const baseUrl = '/examples/html/media/';
+  await writeFile(
+    resolve(MEDIA, '../player-embed.html'),
+    page(
+      'medkit-player YouTube and Vimeo facades',
+      `      <div id="youtube" style="max-width: 640px">${renderPlayer({ provider: 'youtube', id: 'dQw4w9WgXcQ', title: 'A YouTube video', poster: youtube }, { baseUrl, sizes: '640px' })}</div>
+      <div id="vimeo" style="max-width: 400px">${renderPlayer({ provider: 'vimeo', id: '76979871', title: 'A Vimeo video', poster: vimeo }, { baseUrl, sizes: '400px', popup: true })}</div>`,
       'player',
     ),
   );

@@ -1,13 +1,15 @@
 // Server-side rendering for <medkit-player>: a pure function from a video's
 // manifests to HTML, with no DOM. The output is a native <video controls> that
-// plays with no JavaScript; the element replaces its controls.
+// plays with no JavaScript; the element replaces its controls. For YouTube or
+// Vimeo it is a link to the video around its build-time thumbnail, which the
+// element turns into a facade.
 //
 // The markup is byte-identical to what the React component renders, so the
 // two are interchangeable.
 
 import { fallback, tag } from './html.js';
 import type { ImageManifest, VideoManifest } from './manifest.js';
-import { read, urls } from './render.js';
+import { read, renderPicture, urls } from './render.js';
 import type { Labels } from './strings.js';
 
 export interface Caption {
@@ -29,6 +31,20 @@ export interface PlayerVideo {
   title: string;
 }
 
+/** A YouTube or Vimeo video, shown as its thumbnail until the visitor presses play. */
+export interface PlayerEmbed {
+  provider: 'youtube' | 'vimeo';
+  /** The provider's video id: 11 characters for YouTube, digits for Vimeo. */
+  id: string;
+  /** The thumbnail's image manifest, from `medkit thumbnail youtube:<id>`. */
+  poster: ImageManifest;
+  /** Names the play button, the iframe and the popup; required. */
+  title: string;
+}
+
+const EMBED_IDS = { youtube: /^[A-Za-z0-9_-]{11}$/, vimeo: /^\d+$/ };
+const WATCH = { youtube: 'https://www.youtube.com/watch?v=', vimeo: 'https://vimeo.com/' };
+
 export interface RenderPlayerOptions {
   /** Where the files are served from, ending in `/`; default `/media/`. */
   baseUrl?: string;
@@ -37,17 +53,30 @@ export interface RenderPlayerOptions {
   popup?: boolean;
   /** Overrides for this element's labels, by key, such as `{ play: 'Pusti' }`. */
   labels?: Labels;
+  /** How wide a YouTube or Vimeo thumbnail displays; default `100vw`. */
+  sizes?: string;
 }
 
-export type PlayerProps = RenderPlayerOptions & PlayerVideo;
+export type PlayerSource = PlayerVideo | PlayerEmbed;
+export type PlayerProps = RenderPlayerOptions & PlayerSource;
+
+const isEmbed = (source: PlayerSource): source is PlayerEmbed => 'provider' in source;
 
 // A track from another origin can only be read with CORS, which the browser
 // asks for only when the media element itself has `crossorigin`.
 const crossOrigin = (src: string) => /^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(src);
 
 /** The `<medkit-player>` element's own attributes, in the order React writes them. */
-export function playerAttrs({ video, title }: PlayerVideo, { baseUrl = '/media/', popup, labels }: RenderPlayerOptions) {
-  const v = read(video);
+export function playerAttrs(source: PlayerSource, { baseUrl = '/media/', popup, labels }: RenderPlayerOptions) {
+  const { title } = source;
+  if (isEmbed(source)) {
+    const { provider, id } = source;
+    if (!EMBED_IDS[provider]) throw new Error(`medkit: provider "${provider}" is not youtube or vimeo`);
+    if (!EMBED_IDS[provider].test(id)) throw new Error(`medkit: "${id}" is not a ${provider} video id`);
+    if (typeof title !== 'string' || !title) throw new Error(`medkit: ${provider} video "${id}" needs a title, which names its iframe`);
+    return { provider, 'video-id': id, title, popup: popup ? '' : undefined, labels: labels && JSON.stringify(labels), style: 'display:block;position:relative' };
+  }
+  const v = read(source.video);
   if (typeof title !== 'string' || !title) throw new Error(`medkit: player "${v.id}" needs a title, which names its popup`);
   const set = v.player ?? v;
   return {
@@ -63,8 +92,16 @@ export function playerAttrs({ video, title }: PlayerVideo, { baseUrl = '/media/'
   };
 }
 
-/** What goes inside `<medkit-player>`: a `<video controls>` that works with no JavaScript. */
-export function playerVideo({ video, poster }: Omit<PlayerVideo, 'title'>, { baseUrl = '/media/', captions = [] }: RenderPlayerOptions) {
+/**
+ * What goes inside `<medkit-player>`: a `<video controls>` that works with no
+ * JavaScript, or for YouTube and Vimeo a link to the video around its thumbnail.
+ */
+export function playerInner(source: PlayerSource, { baseUrl = '/media/', captions = [], sizes }: RenderPlayerOptions) {
+  if (isEmbed(source)) {
+    const picture = renderPicture(source.poster, { alt: source.title, baseUrl, sizes });
+    return tag('a', { href: WATCH[source.provider] + source.id, style: 'display:block' }) + picture + '</a>';
+  }
+  const { video, poster } = source;
   const v = read(video);
   if (read(poster).id !== v.poster.id) throw new Error(`medkit: player "${v.id}" was given poster "${poster.id}", not "${v.poster.id}"`);
   const set = v.player ?? v;
@@ -94,6 +131,6 @@ export function playerVideo({ video, poster }: Omit<PlayerVideo, 'title'>, { bas
 }
 
 /** The finished `<medkit-player>`: a native video player until the element takes over. */
-export function renderPlayer(source: PlayerVideo, options: RenderPlayerOptions = {}): string {
-  return tag('medkit-player', playerAttrs(source, options)) + playerVideo(source, options) + '</medkit-player>';
+export function renderPlayer(source: PlayerSource, options: RenderPlayerOptions = {}): string {
+  return tag('medkit-player', playerAttrs(source, options)) + playerInner(source, options) + '</medkit-player>';
 }

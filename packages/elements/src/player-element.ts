@@ -23,6 +23,8 @@ export const playerStrings = {
   exitFullscreen: 'Exit full screen',
   /** The popup's thumbnail button; its visible duration must be part of its name. */
   openPopup: 'Play {title}, {duration}',
+  /** A YouTube or Vimeo facade's play button. */
+  playEmbed: 'Play {title}',
   closePopup: 'Close',
 };
 
@@ -66,6 +68,8 @@ const CSS = `:host{display:block;position:relative;color:#fff;font:14px/1.5 syst
 :host(:fullscreen) ::slotted(video),dialog:fullscreen ::slotted(video){height:100%;max-height:none;object-fit:contain}
 .thumb{position:relative;display:block;width:100%;height:auto;border-radius:var(--medkit-radius,4px);overflow:hidden;background:#000}
 .thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.thumb ::slotted(picture){display:block}
+iframe{display:block;width:100%;border:0}
 .thumb svg{position:absolute;inset:50% auto auto 50%;width:64px;height:64px;padding:12px;margin:-44px;border-radius:50%;background:rgba(0,0,0,.6)}
 .thumb span{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.75);border-radius:4px}
 dialog{width:min(100vw - 32px,1280px);max-width:none;padding:0;border:0;background:#000;color:inherit;overflow:visible}
@@ -115,9 +119,13 @@ export class MedkitPlayer extends HTMLElement {
   private dialog?: HTMLDialogElement;
   private thumb?: HTMLButtonElement;
   private pageOverflow = '';
+  /** A facade's iframe, made when it opens. */
+  private frame?: () => HTMLIFrameElement;
 
   connectedCallback() {
     if (this.shadowRoot) return;
+    const provider = this.getAttribute('provider');
+    if (provider) return this.facade(provider);
     const media = this.querySelector<HTMLMediaElement>('video, audio');
     if (!media) return;
     this.media = media;
@@ -227,6 +235,52 @@ export class MedkitPlayer extends HTMLElement {
     this.update();
   }
 
+  /**
+   * YouTube or Vimeo: the server's link around the thumbnail becomes a play
+   * button, and nothing loads from the provider until it is pressed, apart
+   * from a preconnect on hover or focus. The iframe then takes the
+   * thumbnail's box, or opens in the popup, with autoplay and focus inside.
+   */
+  private facade(provider: string) {
+    const id = encodeURIComponent(this.getAttribute('video-id') || '');
+    const src = provider === 'vimeo' ? `https://player.vimeo.com/video/${id}?autoplay=1` : `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1`;
+    const origin = new URL(src).origin;
+    const title = this.getAttribute('title') || '';
+    const link = this.querySelector('a');
+    link?.replaceWith(...link.childNodes);
+    const root = this.attachShadow({ mode: 'open' });
+    root.innerHTML = `<style>${CSS}</style><button type="button" part="button" class="thumb"><slot></slot><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS.play}"/></svg></button>${
+      this.hasAttribute('popup') ? '<dialog><button type="button" part="button" class="close"></button></dialog>' : ''
+    }`;
+    const thumb = (this.thumb = root.querySelector('.thumb')!);
+    thumb.setAttribute('aria-label', this.label('playEmbed', { title }));
+    thumb.onpointerenter = thumb.onfocus = () => {
+      if (!document.querySelector(`link[rel=preconnect][href="${origin}"]`)) document.head.append(Object.assign(document.createElement('link'), { rel: 'preconnect', href: origin }));
+    };
+    this.frame = () => {
+      const frame = Object.assign(document.createElement('iframe'), { src, title, allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', allowFullscreen: true });
+      const { width, height } = thumb.getBoundingClientRect();
+      frame.style.aspectRatio = `${width} / ${height}`;
+      return frame;
+    };
+    const dialog = (this.dialog = root.querySelector('dialog') ?? undefined);
+    if (!dialog) {
+      thumb.onclick = () => {
+        const frame = this.frame!();
+        thumb.replaceWith(frame);
+        frame.focus();
+      };
+      return;
+    }
+    thumb.onclick = () => this.open();
+    const close = root.querySelector<HTMLButtonElement>('.close')!;
+    close.setAttribute('aria-label', this.label('closePopup'));
+    close.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS.closePopup}"/></svg>`;
+    close.onclick = () => dialog.close();
+    dialog.onclick = (e) => e.target === dialog && dialog.close();
+    dialog.onclose = () => this.closed();
+  }
+
   private label(key: keyof typeof playerStrings, values: Record<string, string | number> = {}) {
     return text(playerStrings, key, values, this);
   }
@@ -304,14 +358,19 @@ export class MedkitPlayer extends HTMLElement {
   open(at?: number) {
     const { dialog, media } = this;
     if (!dialog || dialog.open) return;
-    if (at !== undefined) media.currentTime = at;
+    const frame = this.frame?.();
+    if (frame) dialog.prepend(frame);
+    else if (at !== undefined) media.currentTime = at;
     dialog.setAttribute('aria-label', this.getAttribute('title') || '');
     dialog.showModal();
     // The page behind stays where it is while the popup is open.
     this.pageOverflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = 'hidden';
-    if (media.paused) this.toggle();
-    this.controls.play.focus();
+    if (frame) frame.focus();
+    else {
+      if (media.paused) this.toggle();
+      this.controls.play.focus();
+    }
     this.dispatchEvent(new CustomEvent('medkit-popupopen'));
   }
 
@@ -321,11 +380,13 @@ export class MedkitPlayer extends HTMLElement {
   }
 
   private closed() {
-    this.media.pause();
+    // A facade's iframe is removed, which is the only way to stop it.
+    if (this.frame) this.dialog!.querySelector('iframe')?.remove();
+    else this.media.pause();
     document.documentElement.style.overflow = this.pageOverflow;
     if (document.fullscreenElement === this.dialog) document.exitFullscreen();
     this.thumb!.focus();
-    this.dispatchEvent(new CustomEvent('medkit-popupclose', { detail: { currentTime: this.media.currentTime } }));
+    this.dispatchEvent(new CustomEvent('medkit-popupclose', { detail: { currentTime: this.media?.currentTime } }));
   }
 
   private fullscreen() {

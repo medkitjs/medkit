@@ -162,7 +162,7 @@ export async function makePlaceholder(pixels: () => Sharp): Promise<string | und
 }
 
 /** The manifest already on disk, or nothing if it is missing, unreadable or another format version. */
-async function readManifest(path: string): Promise<ImageManifest | undefined> {
+export async function readManifest(path: string): Promise<ImageManifest | undefined> {
   try {
     const manifest = JSON.parse(await readFile(path, 'utf8')) as ImageManifest;
     return manifest?.v === 1 ? manifest : undefined;
@@ -180,7 +180,7 @@ function listed(manifest: ImageManifest | undefined): string[] {
     .filter((src): src is string => typeof src === 'string');
 }
 
-async function allExist(manifest: ImageManifest, outDir: string): Promise<boolean> {
+export async function allExist(manifest: ImageManifest, outDir: string): Promise<boolean> {
   const files = listed(manifest);
   if (!files.length) return false;
   return Promise.all(files.map((src) => access(join(outDir, src)))).then(

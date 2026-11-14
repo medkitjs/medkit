@@ -1,7 +1,7 @@
 import { createElement, type ReactNode } from 'react';
 import { renderPicture, type ImageProps } from './render.js';
 import { clipAttrs, hostAttrs, posterPicture, type VideoBgProps, type VideoClip } from './render-video.js';
-import { playerAttrs, playerVideo, type PlayerProps } from './render-player.js';
+import { playerAttrs, playerInner, type PlayerProps, type PlayerSource } from './render-player.js';
 
 export type { ImageProps, PlayerProps };
 
@@ -42,9 +42,11 @@ export function VideoBg({ clips, ...options }: Omit<VideoBgProps, 'clips'> & { c
 }
 
 /** `<medkit-player>` for React and Next.js; renders exactly what renderPlayer() writes. */
-export function Player({ video, poster, title, ...options }: PlayerProps) {
+export function Player(props: PlayerProps) {
+  const { baseUrl, captions, popup, labels, sizes, ...source } = props;
+  const options = { baseUrl, captions, popup, labels, sizes };
   return createElement('medkit-player', {
-    ...styleObject(playerAttrs({ video, poster, title }, options)),
-    dangerouslySetInnerHTML: { __html: playerVideo({ video, poster }, options) },
+    ...styleObject(playerAttrs(source as PlayerSource, options)),
+    dangerouslySetInnerHTML: { __html: playerInner(source as PlayerSource, options) },
   });
 }

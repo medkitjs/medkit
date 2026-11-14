@@ -1,7 +1,8 @@
 // Covers renderPlayer(): the native <video> it writes for no JavaScript, which
 // set it plays (the manifest's player set over the background's), source
 // order, captions and when they need CORS, the attributes the element reads,
-// refusals, escaping, and that the React component renders the same bytes.
+// refusals, escaping, the YouTube and Vimeo facade's markup, and that the
+// React component renders the same bytes.
 //
 // Not covered here: what the element does with this markup (Playwright player
 // specs), and the Astro component (astro.test.ts).
@@ -102,4 +103,28 @@ test('the React component renders exactly what renderPlayer() writes', () => {
   const s = { ...source({ player }), title: `Summer's "night"` };
   const options = { popup: true, captions: [{ src: '/c.vtt', srclang: 'en', label: 'English', default: true }], labels: { play: 'Pusti' } };
   expect(renderToStaticMarkup(createElement(Player, { ...s, ...options }))).toBe(renderPlayer(s, options));
+});
+
+const thumbnail = (id: string): ImageManifest => ({ ...source().poster, id });
+
+test('a YouTube or Vimeo video renders as a link to it around its local thumbnail, so it works with no JavaScript', () => {
+  const html = renderPlayer({ provider: 'youtube', id: 'dQw4w9WgXcQ', title: 'A talk', poster: thumbnail('youtube-dQw4w9WgXcQ') }, { popup: true });
+  expect(attrs(html, 'medkit-player')[0]).toMatchObject({ provider: 'youtube', 'video-id': 'dQw4w9WgXcQ', title: 'A talk', popup: '' });
+  expect(attrs(html, 'a')[0].href).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  expect(attrs(html, 'img')[0]).toMatchObject({ alt: 'A talk', src: '/media/talk-poster-1280.jpg' });
+  expect(html, 'nothing from the provider before a click').not.toMatch(/ytimg|youtube-nocookie|<iframe/);
+  const vimeo = renderPlayer({ provider: 'vimeo', id: '76979871', title: 'A film', poster: thumbnail('vimeo-76979871') });
+  expect(attrs(vimeo, 'a')[0].href).toBe('https://vimeo.com/76979871');
+});
+
+test('a provider video id that could change the URL, or a missing title, is refused', () => {
+  const poster = thumbnail('x');
+  expect(() => renderPlayer({ provider: 'youtube', id: 'x"><script>', title: 'T', poster })).toThrow(/not a youtube video id/);
+  expect(() => renderPlayer({ provider: 'vimeo', id: '123/../456', title: 'T', poster })).toThrow(/not a vimeo video id/);
+  expect(() => renderPlayer({ provider: 'youtube', id: 'dQw4w9WgXcQ', title: '', poster })).toThrow(/needs a title/);
+});
+
+test('the React component renders a facade exactly as renderPlayer() does', () => {
+  const s = { provider: 'vimeo' as const, id: '76979871', title: `A "film"`, poster: thumbnail('vimeo-76979871') };
+  expect(renderToStaticMarkup(createElement(Player, { ...s, popup: true, sizes: '50vw' }))).toBe(renderPlayer(s, { popup: true, sizes: '50vw' }));
 });
