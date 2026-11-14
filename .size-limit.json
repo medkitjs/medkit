@@ -8,7 +8,7 @@
   {
     "name": "<medkit-video-bg>",
     "path": "packages/elements/dist/video-bg.js",
-    "limit": "4 KB",
+    "limit": "4.5 KB",
     "gzip": true
   },
   {
@@ -16,7 +16,9 @@
     "path": "packages/elements/dist/player.js",
     "limit": "9 KB",
     "gzip": true,
-    "ignore": ["hls.js"]
+    "ignore": [
+      "hls.js"
+    ]
   },
   {
     "name": "All three elements",
@@ -27,6 +29,8 @@
     ],
     "limit": "14 KB",
     "gzip": true,
-    "ignore": ["hls.js"]
+    "ignore": [
+      "hls.js"
+    ]
   }
 ]

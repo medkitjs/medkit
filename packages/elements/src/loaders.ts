@@ -4,6 +4,7 @@
 
 import type { Loader } from './cdn.js';
 import { pending, registry } from './registry.js';
+import type { Labels } from './strings.js';
 
 export type { Loader };
 
@@ -46,10 +47,22 @@ export const imagekit = ({ urlEndpoint }: { urlEndpoint: string }) =>
 /**
  * Sets the loader that client-rendered `<medkit-image src>` elements use: a
  * default, and named ones for a `loader="name"` attribute. Elements already on
- * the page that were waiting for a loader render now.
+ * the page that were waiting for a loader render now. `labels` overrides the
+ * English labels of every element; a key it leaves out keeps its default.
  */
-export function configure(options: { loader?: Loader; loaders?: Record<string, Loader> }): void {
+export function configure(options: { loader?: Loader; loaders?: Record<string, Loader>; labels?: Labels }): void {
   if (options.loader) registry.loader = options.loader;
   Object.assign(registry.loaders, options.loaders);
+  Object.assign(registry.labels, options.labels);
   for (const render of [...pending]) render();
+}
+
+/**
+ * Labels for elements whose nearest `lang` is `lang`, or starts with it and a
+ * hyphen (`sr` covers `sr-Latn`); matched without regard to case. A key it
+ * leaves out falls back to configure({ labels }), then English. Elements read
+ * labels when they render, so register before they connect.
+ */
+export function registerLocale(lang: string, labels: Labels): void {
+  registry.locales[lang.toLowerCase()] = { ...registry.locales[lang.toLowerCase()], ...labels };
 }

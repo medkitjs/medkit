@@ -118,6 +118,14 @@ describe('renderVideoBg', () => {
     expect(attrs(html, 'medkit-clip')[0].title).toBe('"><script>alert(1)</script>');
   });
 
+  test('labels are written as one JSON attribute that a quote in a label cannot close', () => {
+    const labels = { next: 'Sledeći video', announce: '"><b>x</b> {title}' };
+    const html = renderVideoBg([clip('a')], { labels });
+    expect(html).not.toContain('"><b>');
+    expect(JSON.parse(attrs(html, 'medkit-video-bg')[0].labels)).toEqual(labels);
+    expect(attrs(renderVideoBg([clip('a')]), 'medkit-video-bg')[0], 'no labels, no attribute').not.toHaveProperty('labels');
+  });
+
   test('bad input is refused rather than rendered half-right', () => {
     expect(() => renderVideoBg([]), 'no clips').toThrow(/at least one clip/);
     expect(() => renderVideoBg([{ ...clip('a'), title: '' }]), 'no title').toThrow(/needs a title/);
@@ -129,7 +137,7 @@ describe('renderVideoBg', () => {
 
 test('the React component renders exactly what renderVideoBg() writes', () => {
   const clips = [{ ...clip('a'), title: "Summer's \"night\"" }, clip('b', { audio: 'mp4a.40.2' })];
-  const options = { controls: 'pause nav', autoadvance: true, priority: true, intro: 'black' };
+  const options = { controls: 'pause nav', autoadvance: true, priority: true, intro: 'black', labels: { next: 'Sledeći "video"' } };
   const react = renderToStaticMarkup(
     createElement(VideoBg, { ...options, clips: [{ ...clips[0], overlay: createElement('h2', null, 'Hi & bye') }, clips[1]] }),
   );

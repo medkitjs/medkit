@@ -8,6 +8,7 @@
 
 import { checkColour, checkCss, fallback, srcset, tag } from './html.js';
 import type { ImageManifest, VideoManifest } from './manifest.js';
+import type { Labels } from './strings.js';
 import { read, urls } from './render.js';
 
 export interface VideoClip {
@@ -21,7 +22,7 @@ export interface VideoClip {
 }
 
 export interface RenderVideoBgOptions {
-  /** Space-separated: `pause`, `sound`, `nav`. Default `pause`. */
+  /** Space-separated: `pause`, `sound`, `expand`, `nav`. Default `pause`. */
   controls?: string;
   /** Start the next clip when one ends, instead of looping. */
   autoadvance?: boolean;
@@ -37,12 +38,14 @@ export interface RenderVideoBgOptions {
    * little bandwidth, refused autoplay, or no JavaScript.
    */
   intro?: string;
+  /** Overrides for this element's labels, by key, such as `{ next: 'Sledeći video' }`. */
+  labels?: Labels;
 }
 
 export type VideoBgProps = RenderVideoBgOptions & { clips: VideoClip[] };
 
 /** The `<medkit-video-bg>` element's own attributes, in the order React writes them. */
-export function hostAttrs(clips: Pick<VideoClip, 'video'>[], { controls = 'pause', autoadvance, intro }: RenderVideoBgOptions) {
+export function hostAttrs(clips: Pick<VideoClip, 'video'>[], { controls = 'pause', autoadvance, intro, labels }: RenderVideoBgOptions) {
   if (!clips.length) throw new Error('medkit: renderVideoBg needs at least one clip');
   const { width, height } = read(clips[0].video);
   if (intro !== undefined) checkColour('intro', intro);
@@ -50,6 +53,7 @@ export function hostAttrs(clips: Pick<VideoClip, 'video'>[], { controls = 'pause
     controls,
     autoadvance: autoadvance ? '' : undefined,
     intro,
+    labels: labels && JSON.stringify(labels),
     // A fallback size, so the background has a box with no CSS; any author
     // height wins over it.
     style: `display:block;position:relative;overflow:hidden;aspect-ratio:${width} / ${height}${intro ? `;background:${intro}` : ''}`,

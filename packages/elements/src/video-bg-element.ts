@@ -1,5 +1,5 @@
 import { pickRendition } from './rendition.js';
-import { label } from './strings.js';
+import { label as text, strings } from './strings.js';
 
 /** One MP4 rendition, as renderVideoBg() writes it into a clip's `sources` attribute. */
 export interface ClipSource {
@@ -349,7 +349,7 @@ export class MedkitVideoBg extends HTMLElement {
     this.sync(manual);
     this.update();
     if (manual && this.status) {
-      this.status.textContent = label('announce', { title: clip.getAttribute('title') ?? '', current: this.index + 1, total });
+      this.status.textContent = this.label('announce', { title: clip.getAttribute('title') ?? '', current: this.index + 1, total });
     }
     this.dispatchEvent(new CustomEvent('medkit-clipchange', { detail: { index: this.index, clip } }));
   }
@@ -390,6 +390,10 @@ export class MedkitVideoBg extends HTMLElement {
     this.update();
   }
 
+  private label(key: keyof typeof strings, values: Record<string, string | number> = {}) {
+    return text(strings, key, values, this);
+  }
+
   private update() {
     const { pause, sound, prev, next, expand } = this.buttons;
     const set = (button: HTMLButtonElement | undefined, icon: keyof typeof ICONS, text: string) => {
@@ -399,16 +403,16 @@ export class MedkitVideoBg extends HTMLElement {
     };
     const playing = this.playing;
     const muted = this.video?.muted ?? true;
-    set(pause, playing ? 'pause' : 'play', label(playing ? 'pause' : 'play'));
-    set(sound, muted ? 'soundOff' : 'soundOn', label(muted ? 'soundOn' : 'soundOff'));
+    set(pause, playing ? 'pause' : 'play', this.label(playing ? 'pauseBackground' : 'playBackground'));
+    set(sound, muted ? 'soundOff' : 'soundOn', this.label(muted ? 'soundOn' : 'soundOff'));
     if (sound) sound.hidden = !this.clip.hasAttribute('audio');
     const values = { current: this.index + 1, total: this.clips.length };
-    set(expand, 'expand', label('expand'));
-    set(prev, 'prev', label('prev'));
-    set(next, 'next', label('next', values));
+    set(expand, 'expand', this.label('expand'));
+    set(prev, 'prev', this.label('prev'));
+    set(next, 'next', this.label('next', values));
     if (this.position) {
-      this.position.textContent = label('position', values);
-      this.spoken!.textContent = label('spokenPosition', values);
+      this.position.textContent = this.label('position', values);
+      this.spoken!.textContent = this.label('spokenPosition', values);
     }
   }
 }
