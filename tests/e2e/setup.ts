@@ -171,7 +171,7 @@ async function writeVideoPages(m: Record<string, Clip>) {
 
 const vtt = (lines: string[]) => `WEBVTT\n\n${lines.map((line, i) => `00:00:0${i}.000 --> 00:00:0${i + 1}.000\n${line}`).join('\n\n')}\n`;
 
-/** The player pages: the talk clip's player set with captions and an audio player, and the same with hls.js opted in. */
+/** The player pages: the talk clip's player set with captions, an audio player and a popup, and the same with hls.js opted in. */
 async function writePlayerPage(m: Record<string, Clip>) {
   const baseUrl = '/examples/html/media/';
   await writeFile(resolve(MEDIA, 'talk.en.vtt'), vtt(['One', 'Two', 'Three', 'Four', 'Five', 'Six']));
@@ -185,7 +185,10 @@ async function writePlayerPage(m: Record<string, Clip>) {
     page(
       'medkit-player behaviour',
       `      <div id="inline" style="max-width: 800px">${renderPlayer({ ...m.talk, title: 'Test pattern with a tone' }, { baseUrl, captions })}</div>
-      <div id="audio" style="max-width: 800px"><medkit-player title="A tone"><audio controls preload="none" src="${baseUrl}${m.talk.video.mp4[0].src}"></audio></medkit-player></div>`,
+      <div id="audio" style="max-width: 800px"><medkit-player title="A tone"><audio controls preload="none" src="${baseUrl}${m.talk.video.mp4[0].src}"></audio></medkit-player></div>
+      <div id="popup" style="max-width: 400px">${renderPlayer({ ...m.talk, title: 'Talk in a popup' }, { baseUrl, captions, popup: true })}</div>
+      <p id="after">After the popup's thumbnail, so a change in its size moves this.</p>
+      <div style="height: 150vh"></div>`,
       'player',
     ),
   );

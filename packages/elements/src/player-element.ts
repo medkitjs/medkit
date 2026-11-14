@@ -21,6 +21,9 @@ export const playerStrings = {
   pip: 'Picture in picture',
   fullscreen: 'Full screen',
   exitFullscreen: 'Exit full screen',
+  /** The popup's thumbnail button; its visible duration must be part of its name. */
+  openPopup: 'Play {title}, {duration}',
+  closePopup: 'Close',
 };
 
 const ICONS = {
@@ -31,6 +34,7 @@ const ICONS = {
   pip: 'M19 11h-8v6h8zm4 8V5a2 2 0 0 0-2-2H3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2m-2 0H3V5h18z',
   fullscreen: 'M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z',
   exitFullscreen: 'M8 4h2v6H4V8h4zm6 0h2v4h4v2h-6zM4 14h6v6H8v-4H4zm10 0h6v2h-4v4h-2z',
+  closePopup: 'M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z',
 };
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -57,9 +61,17 @@ interface Source {
 // The bar sits on a soft dark backdrop, so white icons keep 3:1 over any
 // video; the focus ring is white on a black halo for the same reason.
 const CSS = `:host{display:block;position:relative;color:#fff;font:14px/1.5 system-ui,sans-serif}
-:host(:fullscreen){display:flex;align-items:center;background:#000}
+:host(:fullscreen),dialog:fullscreen{display:flex;align-items:center;background:#000}
 ::slotted(video){display:block;width:100%;height:auto}
-:host(:fullscreen) ::slotted(video){height:100%;object-fit:contain}
+:host(:fullscreen) ::slotted(video),dialog:fullscreen ::slotted(video){height:100%;max-height:none;object-fit:contain}
+.thumb{position:relative;display:block;width:100%;height:auto;border-radius:var(--medkit-radius,4px);overflow:hidden;background:#000}
+.thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.thumb svg{position:absolute;inset:50% auto auto 50%;width:64px;height:64px;padding:12px;margin:-44px;border-radius:50%;background:rgba(0,0,0,.6)}
+.thumb span{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.75);border-radius:4px}
+dialog{width:min(100vw - 32px,1280px);max-width:none;padding:0;border:0;background:#000;color:inherit;overflow:visible}
+dialog::backdrop{background:rgba(0,0,0,.85)}
+dialog ::slotted(video){max-height:calc(100vh - 32px);object-fit:contain}
+.close{position:absolute;top:8px;right:8px;z-index:1;background:rgba(0,0,0,.6)}
 [part=controls]{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:rgba(0,0,0,.75);transition:opacity .2s}
 :host(:not([audio])) [part=controls]{position:absolute;inset:auto 0 0;background:linear-gradient(transparent,rgba(0,0,0,.8) 40%)}
 .idle{opacity:0;pointer-events:none}
@@ -100,6 +112,9 @@ export class MedkitPlayer extends HTMLElement {
   /** The track C turns back on: the last one shown, else the first. */
   private lastTrack = 0;
   private prepared = false;
+  private dialog?: HTMLDialogElement;
+  private thumb?: HTMLButtonElement;
+  private pageOverflow = '';
 
   connectedCallback() {
     if (this.shadowRoot) return;
@@ -114,8 +129,28 @@ export class MedkitPlayer extends HTMLElement {
     }
 
     const root = this.attachShadow({ mode: 'open' });
-    root.innerHTML = `<style>${CSS}</style><slot></slot><div part="controls"></div>`;
-    this.bar = root.lastElementChild as HTMLElement;
+    // In a popup the media and its bar move into a dialog, and a thumbnail of
+    // the same shape takes their place, so the page does not move.
+    const popup = this.hasAttribute('popup') && !audio;
+    root.innerHTML = `<style>${CSS}</style>${
+      popup
+        ? `<button type="button" part="button" class="thumb"><img alt=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS.play}"/></svg><span aria-hidden="true"></span></button><dialog><slot></slot><div part="controls"></div><button type="button" part="button" class="close"></button></dialog>`
+        : '<slot></slot><div part="controls"></div>'
+    }`;
+    this.bar = root.querySelector('[part=controls]')!;
+    if (popup) {
+      const video = media as HTMLVideoElement;
+      const thumb = (this.thumb = root.querySelector('.thumb')!);
+      const dialog = (this.dialog = root.querySelector('dialog')!);
+      thumb.style.aspectRatio = `${video.width || 16} / ${video.height || 9}`;
+      thumb.querySelector('img')!.src = video.poster;
+      thumb.onclick = () => this.open();
+      const close = (this.controls.close = root.querySelector<HTMLButtonElement>('.close')!);
+      close.onclick = () => dialog.close();
+      // A click on the backdrop lands on the dialog itself, outside its content.
+      dialog.onclick = (e) => e.target === dialog && dialog.close();
+      dialog.onclose = () => this.closed();
+    }
     const add = <K extends keyof HTMLElementTagNameMap>(name: string, tag: K, setup: (el: HTMLElementTagNameMap[K]) => void) => {
       const el = document.createElement(tag);
       el.setAttribute('part', tag === 'input' ? (name === 'seek' ? 'seek' : 'volume') : tag === 'select' ? 'menu' : 'button');
@@ -262,10 +297,41 @@ export class MedkitPlayer extends HTMLElement {
     (this.controls.captions as HTMLSelectElement).value = String(index);
   }
 
+  /**
+   * Opens the popup and plays, from `at` seconds when given. A popup's
+   * thumbnail calls this; so does a background's expand.
+   */
+  open(at?: number) {
+    const { dialog, media } = this;
+    if (!dialog || dialog.open) return;
+    if (at !== undefined) media.currentTime = at;
+    dialog.setAttribute('aria-label', this.getAttribute('title') || '');
+    dialog.showModal();
+    // The page behind stays where it is while the popup is open.
+    this.pageOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
+    if (media.paused) this.toggle();
+    this.controls.play.focus();
+    this.dispatchEvent(new CustomEvent('medkit-popupopen'));
+  }
+
+  /** Closes the popup: Esc, the close button and a click on the backdrop all come here. */
+  close() {
+    this.dialog?.close();
+  }
+
+  private closed() {
+    this.media.pause();
+    document.documentElement.style.overflow = this.pageOverflow;
+    if (document.fullscreenElement === this.dialog) document.exitFullscreen();
+    this.thumb!.focus();
+    this.dispatchEvent(new CustomEvent('medkit-popupclose', { detail: { currentTime: this.media.currentTime } }));
+  }
+
   private fullscreen() {
     const video = this.media as HTMLVideoElement & { webkitEnterFullscreen?: () => void };
     if (document.fullscreenElement) document.exitFullscreen();
-    else if (document.fullscreenEnabled) this.requestFullscreen().catch(() => {});
+    else if (document.fullscreenEnabled) (this.dialog?.open ? this.dialog : this).requestFullscreen().catch(() => {});
     else video.webkitEnterFullscreen?.();
   }
 
@@ -282,6 +348,8 @@ export class MedkitPlayer extends HTMLElement {
 
   private key(e: KeyboardEvent) {
     const media = this.media;
+    // A closed popup's media is not on screen; its thumbnail is just a button.
+    if (this.dialog && !this.dialog.open) return;
     const target = e.composedPath()[0] as HTMLElement;
     const owns = target.localName;
     // A focused control keeps the keys it already handles: Space and Enter on
@@ -346,6 +414,11 @@ export class MedkitPlayer extends HTMLElement {
     icon('mute', media.muted || !media.volume ? 'unmute' : 'mute');
     icon('pip', 'pip');
     icon('fullscreen', document.fullscreenElement ? 'exitFullscreen' : 'fullscreen');
+    if (this.thumb) {
+      this.thumb.setAttribute('aria-label', this.label('openPopup', { title: this.getAttribute('title') || '', duration: clock(this.duration) }));
+      this.thumb.lastElementChild!.textContent = clock(this.duration);
+      icon('close', 'closePopup');
+    }
     const duration = this.duration;
     const seek = c.seek as HTMLInputElement;
     seek.max = String(duration);
