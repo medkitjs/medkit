@@ -2,7 +2,9 @@
 // loads only on expand, the popup opens at the background's moment with the
 // manifest's player set and its sound, and on close the background goes on
 // from where the popup stopped, unless the visitor had paused it, with focus
-// back on the expand button. A page that cancels medkit-expand gets no popup.
+// back on the expand button. A page that cancels medkit-expand gets no popup,
+// and a `player` attribute holding anything renderPlayer() would not write
+// opens nothing and runs nothing.
 //
 // Not covered here: the event's detail and the pause itself (video-bg.spec.ts),
 // and the popup's own behaviour (player-popup.spec.ts).
@@ -73,4 +75,18 @@ test('a page that cancels medkit-expand gets the event and a paused background, 
   await page.waitForTimeout(500);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(await bg(page).evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+});
+
+test('a player attribute with markup renderPlayer() would not write cannot run script: no popup opens, and the console says why', async ({ page }) => {
+  const warnings: string[] = [];
+  page.on('console', (m) => m.type() === 'warning' && warnings.push(m.text()));
+  await playingBackground(page);
+  await page.locator('#talk medkit-clip').evaluate((clip) =>
+    clip.setAttribute('player', '<medkit-player popup title="x"><video><source src="/a.mp4"></video><img src="/missing.png" onerror="window.pwned = 1"></medkit-player>'),
+  );
+  await expandButton(page).click();
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => (window as unknown as { pwned?: number }).pwned), 'the injected handler ran').toBeUndefined();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(warnings.join('\n')).toContain("the clip's player attribute is not what renderVideoBg() writes");
 });

@@ -386,7 +386,7 @@ export class MedkitVideoBg extends HTMLElement {
     );
     if (!go) return;
     import('./expand.js').then(({ expand }) =>
-      expand(clip, currentTime, this.buttons.expand).addEventListener(
+      expand(clip, currentTime, this.buttons.expand)?.addEventListener(
         'medkit-popupclose',
         (e) => {
           const resume = () => {
