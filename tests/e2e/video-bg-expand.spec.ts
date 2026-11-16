@@ -20,8 +20,29 @@ const time = (v: ReturnType<typeof bg>) => v.evaluate((v: HTMLVideoElement) => v
 
 async function playingBackground(page: Page) {
   await page.goto(PAGE);
+  // ponytail: diagnostics for a WebKit-only CI stall at ~0.007 s; remove once its cause is known.
+  // The background's <video> is created only once it is near the viewport, and
+  // media events do not bubble, so this listens in the capture phase.
+  await page.evaluate(() => {
+    const log: string[] = ((window as unknown as { bgEvents: string[] }).bgEvents = []);
+    const types = ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'play', 'playing', 'waiting', 'stalled', 'suspend', 'pause', 'seeking', 'seeked', 'emptied', 'abort', 'error', 'ended'];
+    for (const t of types)
+      document.addEventListener(t, (e) => {
+        const v = e.target as HTMLVideoElement;
+        if (v.closest?.('#talk')) log.push(`${Math.round(performance.now())} ${t} t=${v.currentTime.toFixed(3)} rs=${v.readyState} ns=${v.networkState}`);
+      }, true);
+  });
   await page.locator('#talk').scrollIntoViewIfNeeded();
-  await expect.poll(() => time(bg(page)), { message: 'the background never played' }).toBeGreaterThan(1);
+  try {
+    await expect.poll(() => time(bg(page)), { message: 'the background never played' }).toBeGreaterThan(1);
+  } catch (e) {
+    const report = await bg(page).evaluate((v: HTMLVideoElement) => {
+      const b = [...Array(v.buffered.length)].map((_, i) => `${v.buffered.start(i).toFixed(2)}-${v.buffered.end(i).toFixed(2)}`).join(',');
+      return [...(window as unknown as { bgEvents: string[] }).bgEvents, `now t=${v.currentTime.toFixed(3)} paused=${v.paused} rs=${v.readyState} ns=${v.networkState} buffered=${b || 'none'} src=${v.currentSrc}`].join('\n');
+    });
+    console.log(`background media events:\n${report}`);
+    throw e;
+  }
 }
 
 test("expand loads the player only then, and opens the clip's popup at the background's moment with sound", async ({ page }) => {
