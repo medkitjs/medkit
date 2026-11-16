@@ -88,6 +88,20 @@ test('Space or K plays and pauses, but Space on a focused button presses that bu
   await expect(button(page, 'Unmute')).toBeFocused();
 });
 
+test('on an iPhone or iPad, which ignore a page setting the volume, there is no volume slider, only mute', async ({ browser }) => {
+  for (const [platform, touch] of [['iPhone', 5], ['MacIntel', 5]] as const) {
+    const page = await browser.newPage();
+    await page.addInitScript(([p, t]) => {
+      Object.defineProperty(Navigator.prototype, 'platform', { get: () => p });
+      Object.defineProperty(Navigator.prototype, 'maxTouchPoints', { get: () => t });
+    }, [platform, touch] as const);
+    await page.goto(PAGE);
+    await expect(button(page, 'Mute'), platform).toBeVisible();
+    await expect(host(page).getByRole('slider', { name: 'Volume' }), `a volume slider on ${platform} with touch`).toHaveCount(0);
+    await page.close();
+  }
+});
+
 test('mute, M and the arrow keys change the sound, and the volume slider follows', async ({ page }) => {
   const volume = host(page).getByRole('slider', { name: 'Volume' });
   await button(page, 'Mute').click();

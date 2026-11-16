@@ -186,9 +186,11 @@ export class MedkitPlayer extends HTMLElement {
       });
       i.className = 'vol';
       // iOS ignores volume set by a page; the hardware buttons are the control there.
+      // iOS 18.7 reads back what was written without applying it, so the read-back
+      // alone misses it; iPadOS reports itself as a Mac with touch.
       const before = media.volume;
       media.volume = before === 0.5 ? 0.4 : 0.5;
-      i.hidden = media.volume === before;
+      i.hidden = media.volume === before || /iP(hone|ad|od)/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       media.volume = before;
     });
     const tracks = (this.tracks = [...media.textTracks].filter((t) => t.kind === 'captions' || t.kind === 'subtitles'));

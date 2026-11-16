@@ -175,8 +175,14 @@ if (new URLSearchParams(location.search).has('debug')) {
     lines.push(
       `native HLS ${anyVideo.canPlayType('application/vnd.apple.mpegurl') || 'no'}  element fullscreen ${document.fullscreenEnabled}  video fullscreen ${'webkitEnterFullscreen' in anyVideo}  PiP ${document.pictureInPictureEnabled}`,
     );
+    // The same inputs <medkit-player> reads to decide whether to hide its volume slider.
+    const probe = document.createElement('video');
+    probe.volume = 0.5;
+    lines.push(`volume check: read-back ${probe.volume === 0.5 ? 'applied' : 'ignored'}  platform ${navigator.platform}  maxTouchPoints ${navigator.maxTouchPoints}`);
     for (const p of document.querySelectorAll('medkit-player')) {
       const m = p.querySelector('video, audio');
+      const slider = p.shadowRoot?.querySelector('[part=volume]');
+      if (slider) lines.push(`${hostId(p)}  volume slider ${slider.hidden ? 'hidden' : 'shown'}`);
       lines.push('', `${hostId(p)}  box ${p.clientWidth}×${p.clientHeight}  hls ${base(p.getAttribute('hls')) ?? '-'}`);
       if (m) lines.push(`  ${base(m.currentSrc)} ${m.videoWidth ?? ''}×${m.videoHeight ?? ''}  ${state(m)}  paused ${m.paused}  muted ${m.muted}  volume ${m.volume}  rate ${m.playbackRate}`);
     }
