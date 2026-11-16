@@ -84,8 +84,9 @@ select{padding:0 8px}
 option{color:#000}
 input{flex:1;min-width:80px;height:var(--medkit-control-size,44px);margin:0;accent-color:var(--medkit-accent,#fff);cursor:pointer}
 input+input,.vol{flex:0 1 80px}
-:host([audio]) [part=controls]{flex-wrap:nowrap;overflow:hidden}
+:host([audio]) [part=controls]{flex-wrap:nowrap;overflow:hidden;container-type:inline-size}
 :host([audio]) input{min-width:0}
+@container (max-width:400px){:host([audio]) .vol{display:none}}
 [hidden]{display:none!important}
 :focus-visible{outline:2px solid var(--medkit-accent,#fff);box-shadow:0 0 0 4px #000}
 svg{width:24px;height:24px;fill:currentColor}
