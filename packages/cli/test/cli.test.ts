@@ -67,6 +67,18 @@ test('every image in the folder, nested ones too, lands in the default outDir', 
   expect(stdout).toContain('2 of 2 files processed');
 });
 
+test('with no folder argument, process reads srcDir from medkit.config.js, and src/media without one', async () => {
+  await image('src/media/a.png');
+  expect((await medkit('process')).code, 'the default srcDir').toBe(0);
+  expect(await exists('public/media/a.json'), 'src/media/a.png').toBe(true);
+
+  await mkdir(join(dir, 'assets'));
+  await image('assets/b.png');
+  await writeFile(join(dir, 'medkit.config.js'), `export default { srcDir: 'assets' };`);
+  expect((await medkit('process')).code, 'srcDir from the config').toBe(0);
+  expect(await exists('public/media/b.json'), 'assets/b.png').toBe(true);
+});
+
 test('outDir comes from medkit.config.js, and --out overrides it', async () => {
   await image('src/media/hero.png');
   await writeFile(join(dir, 'medkit.config.js'), `export default { outDir: 'public/assets' };`);
@@ -100,8 +112,8 @@ test('two images with the same name in different folders are refused before anyt
   expect(await exists('public/media'), 'output was written anyway').toBe(false);
 });
 
-test('a bad --concurrency, an unknown flag or a missing folder argument exit with 2 and the usage', async () => {
-  for (const args of [['process', 'src/media', '--concurrency', '0'], ['process', 'src/media', '--fast'], ['process']]) {
+test('a bad --concurrency, an unknown flag or a second folder argument exit with 2 and the usage', async () => {
+  for (const args of [['process', 'src/media', '--concurrency', '0'], ['process', 'src/media', '--fast'], ['process', 'src/media', 'more']]) {
     const { code, stderr } = await medkit(...args);
     expect(code, args.join(' ')).toBe(2);
     expect(stderr, args.join(' ')).toContain('Usage: medkit process');

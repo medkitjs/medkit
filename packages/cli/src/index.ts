@@ -6,14 +6,16 @@ import { basename, extname, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import { checkFfmpeg, loadConfig, processImage, processThumbnail, processVideo, videoOptionsFor, type Provider } from '@medkitjs/core';
 
-const USAGE = `Usage: medkit process <dir> [--out <dir>] [--watch] [--concurrency <n>]
+const USAGE = `Usage: medkit process [dir] [--out <dir>] [--watch] [--concurrency <n>]
        medkit thumbnail <youtube:id | vimeo:id>... [--out <dir>]
 
+  dir            the source folder; default srcDir in medkit.config.js (src/media)
   --out          where files go; overrides outDir in medkit.config.js
   --watch        keep running and process files as they change
   --concurrency  files processed at once; default the smaller of 4 and the CPU count
 
-Video settings, defaults and per file, come from "video" in medkit.config.js.
+Video settings, defaults and per file, come from "video" in medkit.config.js;
+per-file keys are paths relative to the source folder.
 thumbnail fetches each video's thumbnail once, for a YouTube or Vimeo facade's
 poster, as the manifest <provider>-<id>; it is not fetched again while that
 manifest and its files exist.`;
@@ -49,7 +51,7 @@ async function main(argv: string[]): Promise<number | undefined> {
   }
   const [command, dir, ...extra] = positionals;
   if (command === 'thumbnail') return thumbnails(positionals.slice(1), values.out);
-  if (command !== 'process' || !dir || extra.length) throw new UsageError('expected: medkit process <dir>');
+  if (command !== 'process' || extra.length) throw new UsageError('expected: medkit process [dir]');
 
   // ponytail: each sharp job already uses every core, so 4 at once bounds memory, not CPU.
   const concurrency = values.concurrency === undefined ? Math.min(4, availableParallelism()) : Number(values.concurrency);
@@ -57,7 +59,7 @@ async function main(argv: string[]): Promise<number | undefined> {
 
   const config = await loadConfig();
   const outDir = values.out ? resolve(values.out) : config.outDir;
-  const root = resolve(dir);
+  const root = dir ? resolve(dir) : config.srcDir;
   const files = (await readdir(root, { recursive: true }))
     .filter((f) => kind(f))
     .map((f) => join(root, f))

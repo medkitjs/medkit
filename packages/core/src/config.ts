@@ -7,6 +7,8 @@ import { DEFAULT_LADDER, DEFAULT_MAXRATE, isMaxrateTable, type VideoOptions } fr
 export type VideoFileOptions = Pick<VideoOptions, 'ladder' | 'av1' | 'hls' | 'keepAudio' | 'maxrate' | 'player' | 'trim' | 'posterAt'>;
 
 export interface MedkitConfig {
+  /** The source media folder, resolved against the config's folder: the CLI's default folder, and what `video.files` keys are relative to. Default `src/media`. */
+  srcDir: string;
   /** Where processed files are written, resolved against the config's folder. Default `public/media`. */
   outDir: string;
   /** Where those files are served from, a path or a CDN URL, always ending in `/`. Default `/media/`. */
@@ -33,15 +35,15 @@ export async function loadConfig(dir: string = process.cwd()): Promise<MedkitCon
   try {
     await access(path);
   } catch {
-    return { outDir: resolve(dir, 'public/media'), baseUrl: '/media/', video: { ...DEFAULTS, files: {} } };
+    return { srcDir: resolve(dir, 'src/media'), outDir: resolve(dir, 'public/media'), baseUrl: '/media/', video: { ...DEFAULTS, files: {} } };
   }
   const loaded = (await import(pathToFileURL(path).href)) as { default?: unknown };
   const fail = (message: string): never => {
     throw new Error(`${path}: ${message}`);
   };
   if (typeof loaded.default !== 'object' || loaded.default === null) fail('export default an object, such as { outDir, baseUrl }');
-  const user = object(loaded.default, '', ['outDir', 'baseUrl', 'video'], fail);
-  for (const key of ['outDir', 'baseUrl'] as const) {
+  const user = object(loaded.default, '', ['srcDir', 'outDir', 'baseUrl', 'video'], fail);
+  for (const key of ['srcDir', 'outDir', 'baseUrl'] as const) {
     if (user[key] !== undefined && (typeof user[key] !== 'string' || user[key] === '')) fail(`"${key}" must be a non-empty string`);
   }
 
@@ -61,6 +63,7 @@ export async function loadConfig(dir: string = process.cwd()): Promise<MedkitCon
 
   const baseUrl = (user.baseUrl as string | undefined) ?? '/media/';
   return {
+    srcDir: resolve(dir, (user.srcDir as string | undefined) ?? 'src/media'),
     outDir: resolve(dir, (user.outDir as string | undefined) ?? 'public/media'),
     baseUrl: baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`,
     video: { ...defaults, files },
