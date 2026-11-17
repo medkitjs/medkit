@@ -1,11 +1,14 @@
 // Covers <medkit-video-bg> in every engine: lazy loading, the poster staying
 // until a frame has painted, the skip conditions, the autoplay-blocked
 // fallback, pausing offscreen and in a hidden tab, the visitor's pause and its
-// memory, the pause and sound controls, and the expand hand-off.
+// memory, the pause and sound controls, the expand hand-off, and where labels
+// come from.
 //
 // Not covered here: the playlist (video-bg-playlist.spec.ts) and the measured
 // black-frame gate (video-gate.spec.ts).
 
+import { readFile } from 'node:fs/promises';
+import { renderVideoBg } from '@medkitjs/elements';
 import { expect, test, type Page } from '@playwright/test';
 
 const PAGE = '/examples/html/video-bg.html';
@@ -174,4 +177,28 @@ test('every control is a real button at least 44 by 44 pixels', async ({ page })
   const box = await button(page, 'bg', /background video/).boundingBox();
   expect(box!.width).toBeGreaterThanOrEqual(44);
   expect(box!.height).toBeGreaterThanOrEqual(44);
+});
+
+test('labels come from the element, then the locale of its nearest lang, then configure(), then English', async ({ page }) => {
+  await page.goto(PAGE);
+  const read = (id: string) => readFile(`examples/html/media/${id}.json`, 'utf8').then(JSON.parse);
+  const [video, poster] = await Promise.all([read('short-a'), read('short-a-poster')]);
+  const clips = [{ video, poster, title: 'A' }, { video, poster, title: 'B' }];
+  const baseUrl = '/examples/html/media/';
+  const html = (labels?: Record<string, string>) => renderVideoBg(clips, { baseUrl, controls: 'pause nav', labels });
+  await page.evaluate(
+    async ([own, plain, url]) => {
+      const { configure, registerLocale } = (await import(url)) as typeof import('@medkitjs/elements');
+      registerLocale('sr', { next: 'Sledeći video', prev: 'Prethodni video' });
+      configure({ labels: { prev: 'Back' } });
+      document.querySelector('main')!.insertAdjacentHTML('beforeend', `<div id="sr" lang="sr-Latn">${own}</div><div id="en">${plain}</div>`);
+    },
+    [html({ next: 'Dalje' }), html(), '/packages/elements/dist/index.js'],
+  );
+
+  const name = (id: string, label: RegExp) => expect(page.locator(`#${id}`).getByRole('button', { name: label })).toBeVisible();
+  await name('sr', /^Dalje$/); // the element's own beats the locale's
+  await name('sr', /^Prethodni video$/); // sr-Latn falls back to sr, which beats configure()
+  await name('en', /^Next video$/);
+  await name('en', /^Back$/); // configure() beats English
 });

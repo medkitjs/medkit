@@ -4,7 +4,8 @@ export default defineConfig({
   testDir: 'tests/e2e',
   globalSetup: './tests/e2e/setup.ts',
   reporter: 'list',
-  use: { baseURL: 'http://localhost:4173' },
+  // CI keeps a trace of each failed test, uploaded as test-results-<engine>.
+  use: { baseURL: 'http://localhost:4173', trace: process.env.CI ? 'retain-on-failure' : 'off' },
   // The gate records the screen, which is timing-sensitive: it runs one test
   // at a time, after the rest of its engine's tests. CI runs <engine>-gate,
   // which pulls in <engine> as its dependency.
@@ -12,7 +13,8 @@ export default defineConfig({
     const use = devices[{ chromium: 'Desktop Chrome', firefox: 'Desktop Firefox', webkit: 'Desktop Safari' }[name]];
     return [
       { name, use, testIgnore: 'video-gate.spec.ts' },
-      { name: `${name}-gate`, use, testMatch: 'video-gate.spec.ts', workers: 1, dependencies: [name] },
+      // No trace: recording one would load the timing the gate measures.
+      { name: `${name}-gate`, use: { ...use, trace: 'off' }, testMatch: 'video-gate.spec.ts', workers: 1, dependencies: [name] },
     ];
   }),
   webServer: {

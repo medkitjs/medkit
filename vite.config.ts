@@ -5,7 +5,7 @@ export default defineConfig({
     watch: {
       // The browser tests' setup writes these while the server runs; watching
       // them would reload the page under test partway through.
-      ignored: ['**/examples/html/media/**', '**/examples/html/layout.html', '**/examples/html/video-bg*.html'],
+      ignored: ['**/examples/html/media/**', '**/examples/html/layout.html', '**/examples/html/video-bg*.html', '**/examples/html/player*.html'],
     },
   },
 });

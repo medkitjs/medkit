@@ -1,9 +1,12 @@
 export type * from './manifest.js';
 export type { CdnImageOptions } from './cdn.js';
-export { cloudflare, cloudinary, configure, defineLoader, imagekit, imgix } from './loaders.js';
+export { cloudflare, cloudinary, configure, defineLoader, imagekit, imgix, registerLocale } from './loaders.js';
+export type { Labels } from './strings.js';
 export type { Loader } from './loaders.js';
 export { preloadTags, renderImage } from './render.js';
 export type { ArtSource, ImageProps, RenderImageOptions } from './render.js';
 export { DEFAULT_WIDTHS, pickWidths } from './widths.js';
 export { renderVideoBg } from './render-video.js';
 export type { RenderVideoBgOptions, VideoBgProps, VideoClip } from './render-video.js';
+export { renderPlayer } from './render-player.js';
+export type { Caption, PlayerEmbed, PlayerProps, PlayerSource, PlayerVideo, RenderPlayerOptions } from './render-player.js';

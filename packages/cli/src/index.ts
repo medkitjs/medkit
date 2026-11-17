@@ -4,15 +4,19 @@ import { readdir } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { basename, extname, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
-import { checkFfmpeg, loadConfig, processImage, processVideo, videoOptionsFor } from '@medkitjs/core';
+import { checkFfmpeg, loadConfig, processImage, processThumbnail, processVideo, videoOptionsFor, type Provider } from '@medkitjs/core';
 
 const USAGE = `Usage: medkit process <dir> [--out <dir>] [--watch] [--concurrency <n>]
+       medkit thumbnail <youtube:id | vimeo:id>... [--out <dir>]
 
   --out          where files go; overrides outDir in medkit.config.js
   --watch        keep running and process files as they change
   --concurrency  files processed at once; default the smaller of 4 and the CPU count
 
-Video settings, defaults and per file, come from "video" in medkit.config.js.`;
+Video settings, defaults and per file, come from "video" in medkit.config.js.
+thumbnail fetches each video's thumbnail once, for a YouTube or Vimeo facade's
+poster, as the manifest <provider>-<id>; it is not fetched again while that
+manifest and its files exist.`;
 
 const IMAGE = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif', '.tif', '.tiff', '.gif']);
 const VIDEO = new Set(['.mp4', '.mov', '.m4v', '.webm', '.mkv']);
@@ -44,6 +48,7 @@ async function main(argv: string[]): Promise<number | undefined> {
     return 0;
   }
   const [command, dir, ...extra] = positionals;
+  if (command === 'thumbnail') return thumbnails(positionals.slice(1), values.out);
   if (command !== 'process' || !dir || extra.length) throw new UsageError('expected: medkit process <dir>');
 
   // ponytail: each sharp job already uses every core, so 4 at once bounds memory, not CPU.
@@ -90,6 +95,27 @@ async function main(argv: string[]): Promise<number | undefined> {
   if (values.watch) {
     watchFiles(root, seen, handle);
     return undefined;
+  }
+  return failed ? 1 : 0;
+}
+
+async function thumbnails(specs: string[], out: string | undefined): Promise<number> {
+  if (!specs.length) throw new UsageError('expected: medkit thumbnail youtube:<id> or vimeo:<id>');
+  const parsed = specs.map((spec) => {
+    const [, provider, id] = /^(youtube|vimeo):(.+)$/.exec(spec) ?? [];
+    if (!provider) throw new UsageError(`"${spec}" is not youtube:<id> or vimeo:<id>`);
+    return { spec, provider: provider as Provider, id };
+  });
+  const outDir = out ? resolve(out) : (await loadConfig()).outDir;
+  let failed = 0;
+  for (const { spec, provider, id } of parsed) {
+    try {
+      const manifest = await processThumbnail(provider, id, { outDir });
+      console.log(`medkit: ${spec} as ${manifest.id}`);
+    } catch (error) {
+      failed++;
+      console.error(`medkit: ${spec}: ${(error as Error).message}`);
+    }
   }
   return failed ? 1 : 0;
 }

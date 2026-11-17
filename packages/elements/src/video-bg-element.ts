@@ -1,5 +1,5 @@
 import { pickRendition } from './rendition.js';
-import { label } from './strings.js';
+import { label as text, strings } from './strings.js';
 
 /** One MP4 rendition, as renderVideoBg() writes it into a clip's `sources` attribute. */
 export interface ClipSource {
@@ -349,7 +349,7 @@ export class MedkitVideoBg extends HTMLElement {
     this.sync(manual);
     this.update();
     if (manual && this.status) {
-      this.status.textContent = label('announce', { title: clip.getAttribute('title') ?? '', current: this.index + 1, total });
+      this.status.textContent = this.label('announce', { title: clip.getAttribute('title') ?? '', current: this.index + 1, total });
     }
     this.dispatchEvent(new CustomEvent('medkit-clipchange', { detail: { index: this.index, clip } }));
   }
@@ -368,19 +368,39 @@ export class MedkitVideoBg extends HTMLElement {
   }
 
   /**
-   * Hands the clip over to a player: pauses the background as if the visitor
-   * had (without remembering it), and tells the page which clip and where.
-   * Opening the popup and resuming afterwards come with <medkit-player>.
+   * Hands the clip over to the popup player: pauses the background as if the
+   * visitor had (without remembering it), tells the page which clip and
+   * where, and unless the page cancels that event, opens the popup there.
+   * When it closes, the background goes on from where the popup stopped,
+   * unless the visitor had paused it before.
    */
   private expand() {
-    const video = this.video;
+    const { video, clip } = this;
+    const was = this.userPaused;
     this.userPaused = true;
     this.sync();
     this.update();
-    this.dispatchEvent(
-      new CustomEvent('medkit-expand', {
-        detail: { index: this.index, clip: this.clip, src: this.clip.getAttribute('src'), currentTime: video?.currentTime ?? 0 },
-      }),
+    const currentTime = video?.currentTime ?? 0;
+    const go = this.dispatchEvent(
+      new CustomEvent('medkit-expand', { cancelable: true, detail: { index: this.index, clip, src: clip.getAttribute('src'), currentTime } }),
+    );
+    if (!go) return;
+    import('./expand.js').then(({ expand }) =>
+      expand(clip, currentTime, this.buttons.expand)?.addEventListener(
+        'medkit-popupclose',
+        (e) => {
+          const resume = () => {
+            this.userPaused = was;
+            this.sync();
+            this.update();
+          };
+          if (!video) return resume();
+          // Playing before the seek lands sometimes started WebKit from 0.
+          video.addEventListener('seeked', resume, { once: true });
+          video.currentTime = (e as CustomEvent).detail.currentTime;
+        },
+        { once: true },
+      ),
     );
   }
 
@@ -388,6 +408,10 @@ export class MedkitVideoBg extends HTMLElement {
     const video = this.video;
     if (video) video.muted = !video.muted;
     this.update();
+  }
+
+  private label(key: keyof typeof strings, values: Record<string, string | number> = {}) {
+    return text(strings, key, values, this);
   }
 
   private update() {
@@ -399,16 +423,16 @@ export class MedkitVideoBg extends HTMLElement {
     };
     const playing = this.playing;
     const muted = this.video?.muted ?? true;
-    set(pause, playing ? 'pause' : 'play', label(playing ? 'pause' : 'play'));
-    set(sound, muted ? 'soundOff' : 'soundOn', label(muted ? 'soundOn' : 'soundOff'));
+    set(pause, playing ? 'pause' : 'play', this.label(playing ? 'pauseBackground' : 'playBackground'));
+    set(sound, muted ? 'soundOff' : 'soundOn', this.label(muted ? 'soundOn' : 'soundOff'));
     if (sound) sound.hidden = !this.clip.hasAttribute('audio');
     const values = { current: this.index + 1, total: this.clips.length };
-    set(expand, 'expand', label('expand'));
-    set(prev, 'prev', label('prev'));
-    set(next, 'next', label('next', values));
+    set(expand, 'expand', this.label('expand'));
+    set(prev, 'prev', this.label('prev'));
+    set(next, 'next', this.label('next', values));
     if (this.position) {
-      this.position.textContent = label('position', values);
-      this.spoken!.textContent = label('spokenPosition', values);
+      this.position.textContent = this.label('position', values);
+      this.spoken!.textContent = this.label('spokenPosition', values);
     }
   }
 }

@@ -4,14 +4,14 @@ import { pathToFileURL } from 'node:url';
 import { DEFAULT_LADDER, DEFAULT_MAXRATE, isMaxrateTable, type VideoOptions } from './video.js';
 
 /** Video settings that can differ per file; the rest are defaults for every video. */
-export type VideoFileOptions = Pick<VideoOptions, 'ladder' | 'av1' | 'hls' | 'keepAudio' | 'maxrate' | 'trim' | 'posterAt'>;
+export type VideoFileOptions = Pick<VideoOptions, 'ladder' | 'av1' | 'hls' | 'keepAudio' | 'maxrate' | 'player' | 'trim' | 'posterAt'>;
 
 export interface MedkitConfig {
   /** Where processed files are written, resolved against the config's folder. Default `public/media`. */
   outDir: string;
   /** Where those files are served from, a path or a CDN URL, always ending in `/`. Default `/media/`. */
   baseUrl: string;
-  video: Required<Pick<VideoOptions, 'ladder' | 'av1' | 'hls' | 'keepAudio' | 'maxrate'>> & {
+  video: Required<Pick<VideoOptions, 'ladder' | 'av1' | 'hls' | 'keepAudio' | 'maxrate'>> & Pick<VideoOptions, 'player'> & {
     /** Per-file options, keyed by the file's path relative to the source folder, with `/` separators. */
     files: Record<string, VideoFileOptions>;
   };
@@ -45,7 +45,7 @@ export async function loadConfig(dir: string = process.cwd()): Promise<MedkitCon
     if (user[key] !== undefined && (typeof user[key] !== 'string' || user[key] === '')) fail(`"${key}" must be a non-empty string`);
   }
 
-  const video = object(user.video ?? {}, 'video', ['ladder', 'av1', 'hls', 'keepAudio', 'maxrate', 'files'], fail);
+  const video = object(user.video ?? {}, 'video', ['ladder', 'av1', 'hls', 'keepAudio', 'maxrate', 'player', 'files'], fail);
   const defaults = { ...DEFAULTS, ...videoOptions(video, 'video', fail) } as MedkitConfig['video'];
   const files: Record<string, VideoFileOptions> = {};
   const listed = object(video.files ?? {}, 'video.files', null, fail);
@@ -55,7 +55,7 @@ export async function loadConfig(dir: string = process.cwd()): Promise<MedkitCon
       fail(`"video.files" key "${key}" must be a path inside the source folder, such as "hero.mp4"`);
     }
     const where = `video.files["${key}"]`;
-    const options = object(value, where, ['ladder', 'av1', 'hls', 'keepAudio', 'maxrate', 'trim', 'posterAt'], fail);
+    const options = object(value, where, ['ladder', 'av1', 'hls', 'keepAudio', 'maxrate', 'player', 'trim', 'posterAt'], fail);
     files[file] = videoOptions(options, where, fail);
   }
 
@@ -83,12 +83,9 @@ function object(value: unknown, where: string, keys: string[] | null, fail: (m: 
   return record;
 }
 
-function videoOptions(record: Record<string, unknown>, where: string, fail: (m: string) => never): VideoFileOptions {
-  const out: VideoFileOptions = {};
-  const seconds = (v: unknown, name: string) => {
-    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) fail(`"${where}.${name}" must be a number of seconds, 0 or more`);
-    return v as number;
-  };
+/** `av1`, `hls`, `keepAudio` and `ladder` from `record`, checked. */
+function flags(record: Record<string, unknown>, where: string, fail: (m: string) => never) {
+  const out: Pick<VideoOptions, 'av1' | 'hls' | 'keepAudio' | 'ladder'> = {};
   for (const key of ['av1', 'hls', 'keepAudio'] as const) {
     if (record[key] === undefined) continue;
     if (typeof record[key] !== 'boolean') fail(`"${where}.${key}" must be true or false`);
@@ -100,6 +97,20 @@ function videoOptions(record: Record<string, unknown>, where: string, fail: (m: 
       fail(`"${where}.ladder" must list whole numbers of pixels, such as [480, 720, 1080]`);
     }
     out.ladder = ladder as number[];
+  }
+  return out;
+}
+
+function videoOptions(record: Record<string, unknown>, where: string, fail: (m: string) => never): VideoFileOptions {
+  const out: VideoFileOptions = {};
+  const seconds = (v: unknown, name: string) => {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) fail(`"${where}.${name}" must be a number of seconds, 0 or more`);
+    return v as number;
+  };
+  Object.assign(out, flags(record, where, fail));
+  if (record.player !== undefined) {
+    const player = object(record.player, `${where}.player`, ['keepAudio', 'hls', 'ladder'], fail);
+    out.player = flags(player, `${where}.player`, fail);
   }
   if (record.maxrate !== undefined) {
     if (record.maxrate !== false && !isMaxrateTable(record.maxrate)) {

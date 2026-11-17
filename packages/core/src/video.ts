@@ -4,7 +4,7 @@ import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/p
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import type { VideoManifest, VideoRendition } from '@medkitjs/elements';
+import type { PlayerSet, VideoManifest, VideoRendition } from '@medkitjs/elements';
 import { checkFfmpeg, ffmpeg, ffprobe } from './ffmpeg.js';
 import { processImage } from './image.js';
 
@@ -31,6 +31,12 @@ export interface VideoOptions {
    * Default 480: 800, 720: 1600, 1080: 3000.
    */
   maxrate?: Record<number, number> | false;
+  /**
+   * Also encode a set for `<medkit-player>`, which a background's expand
+   * opens: H.264 only, from the same decode, under the same `maxrate`.
+   * Defaults: `keepAudio` true, `hls` true, `ladder` the background's.
+   */
+  player?: { keepAudio?: boolean; hls?: boolean; ladder?: number[] };
 }
 
 export const DEFAULT_LADDER = [480, 720, 1080];
@@ -72,9 +78,11 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
   const id = options.id ?? basename(input, extname(input));
   if (!ID.test(id)) throw new Error(`${input}: "${id}" is not a usable id; rename the file or pass { id }`);
   const ladder = options.ladder ?? DEFAULT_LADDER;
-  const { av1 = false, hls = false, keepAudio = false, trim = {}, posterAt = 0, maxrate = DEFAULT_MAXRATE } = options;
-  if (!ladder.length || !ladder.every((h) => Number.isInteger(h) && h > 0)) {
-    throw new Error(`${input}: ladder must list whole numbers of pixels, such as [480, 720, 1080]`);
+  const { av1 = false, hls = false, keepAudio = false, trim = {}, posterAt = 0, maxrate = DEFAULT_MAXRATE, player } = options;
+  for (const l of [ladder, player?.ladder ?? ladder]) {
+    if (!l.length || !l.every((h) => Number.isInteger(h) && h > 0)) {
+      throw new Error(`${input}: ladder must list whole numbers of pixels, such as [480, 720, 1080]`);
+    }
   }
   if ((trim.start ?? 0) < 0 || (trim.end !== undefined && trim.end <= (trim.start ?? 0))) {
     throw new Error(`${input}: trim needs 0 <= start < end`);
@@ -84,7 +92,7 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
     throw new Error(`${input}: maxrate must map ladder heights to whole kbps, such as { 480: 800, 720: 1600 }, or be false`);
   }
 
-  const hash = createHash('sha256').update(JSON.stringify({ PIPELINE_VERSION, id, ladder, av1, hls, keepAudio, trim, posterAt, maxrate }));
+  const hash = createHash('sha256').update(JSON.stringify({ PIPELINE_VERSION, id, ladder, av1, hls, keepAudio, trim, posterAt, maxrate, player }));
   await pipeline(createReadStream(input), hash);
   const digest = hash.digest('hex');
 
@@ -103,23 +111,29 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
   if (posterAt >= duration) throw new Error(`${input}: posterAt ${posterAt}s is past the end of the ${duration}s clip`);
 
   const short = Math.min(source.width, source.height);
-  const sizes = [...new Set(ladder)].filter((h) => h <= short).sort((a, b) => a - b);
-  if (!sizes.length) sizes.push(short);
+  const rungs = (l: number[]) => {
+    const sizes = [...new Set(l)].filter((h) => h <= short).sort((a, b) => a - b);
+    return sizes.length ? sizes : [short];
+  };
   const landscape = source.width >= source.height;
   const audio = keepAudio && source.audio;
+  const playerAudio = (player?.keepAudio ?? true) && source.audio;
 
   // One decode feeds every output: the source is split once per rendition.
-  const outputs = sizes.flatMap((p) => [
-    { p, codec: 'h264', src: `${id}-${p}p.mp4` },
-    ...(av1 ? [{ p, codec: 'av1', src: `${id}-${p}p-av1.mp4` }] : []),
-  ]);
+  const outputs = [
+    ...rungs(ladder).flatMap((p) => [
+      { p, codec: 'h264', src: `${id}-${p}p.mp4`, audio, player: false },
+      ...(av1 ? [{ p, codec: 'av1', src: `${id}-${p}p-av1.mp4`, audio, player: false }] : []),
+    ]),
+    ...(player ? rungs(player.ladder ?? ladder).map((p) => ({ p, codec: 'h264', src: `${id}-player-${p}p.mp4`, audio: playerAudio, player: true })) : []),
+  ];
   const split = `[0:v]split=${outputs.length}${outputs.map((_, i) => `[s${i}]`).join('')}`;
   const scales = outputs.map(({ p }, i) => `[s${i}]scale=${landscape ? `-2:${p}` : `${p}:-2`}[v${i}]`);
   // A keyframe at 0 and every 2 seconds, so HLS segments and seeks line up.
   // x264 takes forced keyframes; SVT-AV1 ignores them and needs a fixed GOP.
   const gop = String(Math.round(source.fps * 2));
   const args = [...(start ? ['-ss', String(start)] : []), '-t', String(duration), '-i', input, '-filter_complex', [split, ...scales].join(';')];
-  outputs.forEach(({ p, codec, src }, i) => {
+  outputs.forEach(({ p, codec, src, audio }, i) => {
     args.push('-map', `[v${i}]`, ...(audio ? ['-map', '0:a:0', '-c:a', 'aac', '-b:a', '128k'] : ['-an']));
     args.push('-map_metadata', '-1', '-map_chapters', '-1', '-pix_fmt', 'yuv420p', '-movflags', '+faststart');
     if (codec === 'h264') {
@@ -136,7 +150,7 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
   await mkdir(outDir, { recursive: true });
   await ffmpeg(args);
 
-  const mp4: VideoRendition[] = await Promise.all(
+  const all: VideoRendition[] = await Promise.all(
     outputs.map(async ({ src }) => {
       const file = join(outDir, src);
       const [stream] = (await ffprobe(['-select_streams', 'v:0', '-show_entries', 'stream=codec_name,profile,level,width,height', file]))
@@ -144,23 +158,34 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
       return { src, width: stream.width, height: stream.height, codec: codecString(stream), bytes: (await stat(file)).size };
     }),
   );
+  const mp4 = all.filter((_, i) => !outputs[i].player);
+  const playerMp4 = all.filter((_, i) => outputs[i].player);
   const h264 = mp4.filter((r) => r.codec.startsWith('avc1'));
 
-  let hlsPath: string | undefined;
-  if (hls) {
-    const dir = join(outDir, id);
+  /** Packages `renditions` without re-encoding into fMP4 HLS in `<folder>/`; returns its master playlist's path. */
+  const packageHls = async (renditions: VideoRendition[], withAudio: boolean, folder: string) => {
+    const dir = join(outDir, folder);
     await mkdir(dir, { recursive: true });
-    const names = h264.map((r) => `${landscape ? r.height : r.width}p`);
+    const names = renditions.map((r) => `${landscape ? r.height : r.width}p`);
     await ffmpeg([
-      ...h264.flatMap((r) => ['-i', join(outDir, r.src)]),
-      ...h264.flatMap((_, i) => ['-map', `${i}:v`, ...(audio ? ['-map', `${i}:a`] : [])]),
+      ...renditions.flatMap((r) => ['-i', join(outDir, r.src)]),
+      ...renditions.flatMap((_, i) => ['-map', `${i}:v`, ...(withAudio ? ['-map', `${i}:a`] : [])]),
       '-c', 'copy', '-f', 'hls', '-hls_time', '4', '-hls_playlist_type', 'vod', '-hls_segment_type', 'fmp4',
-      '-hls_fmp4_init_filename', '%v_init.mp4', '-hls_segment_filename', join(dir, '%v_%03d.m4s'),
+      // ffmpeg 6 leaves %v unexpanded here for a single variant, and its
+      // playlist would then point at a file literally named "%v_init.mp4".
+      '-hls_fmp4_init_filename', names.length === 1 ? `${names[0]}_init.mp4` : '%v_init.mp4',
+      '-hls_segment_filename', join(dir, '%v_%03d.m4s'),
       '-master_pl_name', 'master.m3u8',
-      '-var_stream_map', names.map((n, i) => `v:${i}${audio ? `,a:${i}` : ''},name:${n}`).join(' '),
+      '-var_stream_map', names.map((n, i) => `v:${i}${withAudio ? `,a:${i}` : ''},name:${n}`).join(' '),
       join(dir, '%v.m3u8'),
     ]);
-    hlsPath = `${id}/master.m3u8`;
+    return `${folder}/master.m3u8`;
+  };
+  const hlsPath = hls ? await packageHls(h264, audio, id) : undefined;
+  let playerSet: PlayerSet | undefined;
+  if (player) {
+    playerSet = { audio: playerAudio ? 'mp4a.40.2' : false, mp4: playerMp4 };
+    if (player.hls ?? true) playerSet.hls = await packageHls(playerMp4, playerAudio, `${id}-player`);
   }
 
   // The poster is decoded from the largest H.264 encode, not the source, so it
@@ -189,6 +214,7 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
     poster,
     mp4,
     ...(hlsPath && { hls: hlsPath }),
+    ...(playerSet && { player: playerSet }),
     hash: digest,
   };
   // Written last, so a manifest on disk always means every file it lists was written.
@@ -253,16 +279,18 @@ async function readManifest(path: string): Promise<VideoManifest | undefined> {
 
 /**
  * Every file a manifest lists, relative to outDir: its MP4s, and its HLS
- * playlists and segments. The HLS folder comes from `id`, the checked id being
- * processed, never from the file: a tampered manifest with an id of ".." must
- * not point cleanup outside outDir.
+ * playlists and segments, for the background and the player set. The HLS
+ * folders come from `id`, the checked id being processed, never from the
+ * file: a tampered manifest with an id of ".." must not point cleanup outside
+ * outDir.
  */
 async function listed(manifest: VideoManifest | undefined, outDir: string, id: string): Promise<string[]> {
   if (!manifest) return [];
   const plain = (name: unknown): name is string => typeof name === 'string' && name === basename(name) && name !== '..';
-  const files = (Array.isArray(manifest.mp4) ? manifest.mp4 : []).map((r) => r?.src).filter(plain);
-  if (manifest.hls === `${id}/master.m3u8`) {
-    const dir = id;
+  const rows = (list: unknown) => (Array.isArray(list) ? (list as { src?: unknown }[]) : []).map((r) => r?.src).filter(plain);
+  const files = [...rows(manifest.mp4), ...rows(manifest.player?.mp4)];
+  for (const [hls, dir] of [[manifest.hls, id], [manifest.player?.hls, `${id}-player`]] as [unknown, string][]) {
+    if (hls !== `${dir}/master.m3u8`) continue;
     const uris = async (playlist: string) => {
       const text = await readFile(join(outDir, dir, playlist), 'utf8').catch(() => '');
       const map = [...text.matchAll(/#EXT-X-MAP:URI="([^"]+)"/g)].map((m) => m[1]);

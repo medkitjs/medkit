@@ -74,6 +74,13 @@ test('maxrate replaces the default caps as a whole, or turns them off for one fi
   expect(videoOptionsFor(config, 'loop.mp4').maxrate).toBe(false);
 });
 
+test('player options set the expand set for every video, and a file can replace them as a whole', async () => {
+  await write(`export default { video: { player: { ladder: [720, 1080] }, files: { 'talk.mp4': { player: { hls: false } } } } };`);
+  const config = await loadConfig(dir);
+  expect(videoOptionsFor(config, 'hero.mp4').player).toEqual({ ladder: [720, 1080] });
+  expect(videoOptionsFor(config, 'talk.mp4').player).toEqual({ hls: false });
+});
+
 test('a Windows-style path in video.files matches the same file', async () => {
   await write(`export default { video: { files: { 'clips\\\\hero.mp4': { keepAudio: true } } } };`);
   expect(videoOptionsFor(await loadConfig(dir), 'clips/hero.mp4').keepAudio).toBe(true);
@@ -84,6 +91,8 @@ test.each([
   [`{ video: { files: { 'a.mp4': { trimm: {} } } } }`, /unknown option "trimm" in "video.files\["a.mp4"\]"/],
   [`{ video: { ladder: [480.5] } }`, /"video.ladder" must list whole numbers/],
   [`{ video: { av1: 'yes' } }`, /"video.av1" must be true or false/],
+  [`{ video: { player: { keepaudio: true } } }`, /unknown option "keepaudio" in "video.player"/],
+  [`{ video: { player: { ladder: [] } } }`, /"video.player.ladder" must list whole numbers/],
   [`{ video: { maxrate: { 720: 1.5 } } }`, /"video.maxrate" must map ladder heights to whole kbps/],
   [`{ video: { maxrate: {} } }`, /"video.maxrate" must map ladder heights to whole kbps/],
   [`{ video: { maxrate: true } }`, /"video.maxrate" must map ladder heights to whole kbps/],
