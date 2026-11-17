@@ -3,7 +3,8 @@
 // with the build, medkit.config.js applies (outDir; per-file video options keyed
 // from srcDir, and a video outside srcDir still imports with the defaults), a
 // video.files key that names nothing in srcDir fails the build,
-// and two sources with one stem fail instead of overwriting each other. Also
+// two sources with one stem fail instead of overwriting each other, and a dev
+// server refuses a file outside server.fs.allow. Also
 // type-checks the `?medkit` declarations in client.d.ts. Needs ffmpeg on PATH.
 //
 // Not covered: dev-server caching, which is core's hash cache (core's tests);
@@ -20,7 +21,7 @@ import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import type { ImageManifest, VideoManifest } from '@medkitjs/elements';
 import sharp from 'sharp';
-import { build } from 'vite';
+import { build, createServer } from 'vite';
 import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from 'vitest';
 import medkit from '../src/index.js';
 import type hero from './types/hero.jpg?medkit';
@@ -96,6 +97,20 @@ test('a ?medkit import of something that is neither image nor video fails the bu
   await write('src/b/notes.txt', 'hello');
   await write('src/main.js', `export { default as notes } from './b/notes.txt?medkit';`);
   await expect(bundle()).rejects.toThrow('?medkit takes an image or a video');
+});
+
+test('a dev server refuses to process a file outside server.fs.allow, so a request cannot reach any image on the machine', async () => {
+  const outside = await mkdtemp(join(tmpdir(), 'medkit-outside-'));
+  await sharp(join(root, 'src/hero.jpg')).toFile(join(outside, 'secret.jpg'));
+  const server = await createServer({ root, configFile: false, logLevel: 'silent', plugins: [medkit()], server: { middlewareMode: true, fs: { allow: [root] } } });
+  try {
+    await expect(server.transformRequest(`/@fs${join(outside, 'secret.jpg')}?medkit`)).rejects.toThrow('outside server.fs.allow');
+    await expect(access(join(root, 'public/media/secret.json')), 'nothing written for it').rejects.toThrow();
+    expect((await server.transformRequest('/src/hero.jpg?medkit'))?.code, 'a file inside still works').toContain('"id":"hero"');
+  } finally {
+    await server.close();
+    await rm(outside, { recursive: true, force: true });
+  }
 });
 
 test('client.d.ts types an image import as an image manifest and a video import as a video manifest', () => {

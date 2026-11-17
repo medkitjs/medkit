@@ -4,7 +4,7 @@ import { availableParallelism } from 'node:os';
 import { basename, extname, relative, resolve, sep } from 'node:path';
 import { checkFfmpeg, loadConfig, processImage, processVideo, videoOptionsFor, type MedkitConfig } from '@medkitjs/core';
 import type { Manifest } from '@medkitjs/elements';
-import type { Plugin } from 'vite';
+import { isFileLoadingAllowed, type Plugin, type ResolvedConfig } from 'vite';
 
 // The same extensions `medkit process` picks up.
 const IMAGE = /\.(jpe?g|png|webp|avif|tiff?|gif)$/i;
@@ -16,7 +16,7 @@ const VIDEO = /\.(mp4|mov|m4v|webm|mkv)$/i;
  * manifest. `video.files` keys are relative to `srcDir`, as for the CLI.
  */
 export default function medkit(): Plugin {
-  let root: string;
+  let vite: ResolvedConfig;
   let config: MedkitConfig;
   let ffmpeg: Promise<unknown> | undefined;
   // Manifests are named by file stem in one flat folder, so two sources with
@@ -33,10 +33,10 @@ export default function medkit(): Plugin {
     // Vite's asset plugin would otherwise load `hero.jpg?medkit` as a URL.
     enforce: 'pre',
     configResolved(resolved) {
-      root = resolved.root;
+      vite = resolved;
     },
     async buildStart() {
-      config = await loadConfig(root);
+      config = await loadConfig(vite.root);
       // A key that matches no file is a typo that would silently encode with the defaults.
       for (const key of Object.keys(config.video.files)) {
         if (!VIDEO.test(key) || !existsSync(resolve(config.srcDir, key))) {
@@ -48,6 +48,12 @@ export default function medkit(): Plugin {
       const [file, query = ''] = id.split('?', 2);
       if (!new URLSearchParams(query).has('medkit')) return null;
       const kind = IMAGE.test(file) ? 'image' : VIDEO.test(file) ? 'video' : this.error(`${file}: ?medkit takes an image or a video`);
+      // A dev server answers `/@fs/<any path>?medkit`, and Vite's server.fs
+      // check does not cover what a plugin loads; without this, any image on
+      // the machine could be processed into outDir and served.
+      if (vite.command === 'serve' && !isFileLoadingAllowed(vite, file)) {
+        this.error(`${file} is outside server.fs.allow, so ?medkit will not process it`);
+      }
 
       const stem = basename(file, extname(file));
       for (const claim of kind === 'video' ? [stem, `${stem}-poster`] : [stem]) {
