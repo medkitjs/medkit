@@ -63,6 +63,22 @@ function posterKbps(root: Element): number | undefined {
  * fades out. Nothing loads until the element is within 200px of the viewport,
  * and no video at all with reduced motion, Save-Data or 2G. With `intro`, the
  * first poster waits in a `<noscript>`, shown only when no video will play.
+ *
+ * @tagname medkit-video-bg
+ * @slot - One `<medkit-clip>` per video, as renderVideoBg() writes them: `src`, `title`, `sources`, `duration`, `start`, `audio` and `player`, each with its poster and overlay inside.
+ * @attr {string} controls - Space-separated: `pause` (always shown unless every clip is under 5 s), `sound`, `expand`, `nav`. Default `pause`.
+ * @attr {boolean} autoadvance - Start the next clip when one ends, instead of looping it.
+ * @attr {string} intro - A CSS colour that shows instead of the first poster until the video's first frame.
+ * @attr {string} labels - JSON overriding this element's labels, with the keys of `configure({ labels })`.
+ * @fires medkit-play - Playback started or resumed.
+ * @fires medkit-pause - Playback paused, by the visitor or because the element left the screen.
+ * @fires {CustomEvent<{ index: number, clip: HTMLElement }>} medkit-clipchange - Another clip became active.
+ * @fires {CustomEvent<{ index: number, clip: HTMLElement, src: string, currentTime: number }>} medkit-expand - Expand was pressed; cancelable, and cancelling it keeps the popup closed.
+ * @csspart controls - The row of control buttons.
+ * @csspart button - Each control button.
+ * @cssprop [--medkit-accent=#fff] - Focus outline colour.
+ * @cssprop [--medkit-control-size=44px] - Width and height of each button; keep it at least 44px.
+ * @cssprop [--medkit-controls-inset=16px] - Distance of the controls from the bottom right corner.
  */
 export class MedkitVideoBg extends HTMLElement {
   private clips: HTMLElement[] = [];

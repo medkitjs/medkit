@@ -4,3 +4,9 @@ packages:
 # Fails pnpm install on a Node outside "engines", so an unpatched Node
 # cannot install. pnpm 12 reads this here; it ignores engine-strict in .npmrc.
 engineStrict: true
+
+# pnpm 12 fails the install on any dependency install script not listed here.
+# rs-module-lexer's (from the Custom Elements Manifest analyzer) only checks
+# its native binding, and the analyzer runs without it.
+allowBuilds:
+  rs-module-lexer: false
