@@ -10,7 +10,7 @@
 // pass locally while it 404'd in CI.
 
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -64,8 +64,7 @@ export default async function setup() {
       processVideo(join(src, 'short-a.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
       processVideo(join(src, 'short-b.mp4'), { outDir: MEDIA, ladder: [480, 720] }),
     ]);
-    const posters = await Promise.all(videos.map(async (v) => JSON.parse(await readFile(join(MEDIA, `${v.poster.id}.json`), 'utf8'))));
-    const clips = Object.fromEntries(videos.map((video, i) => [video.id, { video, poster: posters[i] }]));
+    const clips = Object.fromEntries(videos.map((video) => [video.id, { video }]));
     await writeVideoPages(clips);
     await writePlayerPage(clips);
   } finally {

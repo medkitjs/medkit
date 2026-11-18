@@ -15,6 +15,11 @@ import { Player } from '../src/react.js';
 import { renderPlayer, type PlayerVideo } from '../src/render-player.js';
 
 function source(extra: Partial<VideoManifest> = {}): PlayerVideo {
+  const rendition = (ext: string) => [640, 1280, 1920].map((w) => ({ src: `talk-poster-${w}.${ext}`, width: w, height: (w * 9) / 16, bytes: 1 }));
+  const poster: ImageManifest = {
+    v: 1, id: 'talk-poster', kind: 'image', width: 1920, height: 1080, color: '#1d2433',
+    avif: rendition('avif'), webp: rendition('webp'), jpeg: rendition('jpg'), hash: 'def',
+  };
   const video: VideoManifest = {
     v: 1,
     id: 'talk',
@@ -23,7 +28,7 @@ function source(extra: Partial<VideoManifest> = {}): PlayerVideo {
     height: 1080,
     duration: 14.2,
     audio: false,
-    poster: { id: 'talk-poster', color: '#1d2433' },
+    poster,
     mp4: [
       { src: 'talk-480p.mp4', width: 854, height: 480, codec: 'avc1.64001e', bytes: 1 },
       { src: 'talk-1080p.mp4', width: 1920, height: 1080, codec: 'avc1.640028', bytes: 1 },
@@ -31,12 +36,7 @@ function source(extra: Partial<VideoManifest> = {}): PlayerVideo {
     hash: 'abc',
     ...extra,
   };
-  const rendition = (ext: string) => [640, 1280, 1920].map((w) => ({ src: `talk-poster-${w}.${ext}`, width: w, height: (w * 9) / 16, bytes: 1 }));
-  const poster: ImageManifest = {
-    v: 1, id: 'talk-poster', kind: 'image', width: 1920, height: 1080, color: '#1d2433',
-    avif: rendition('avif'), webp: rendition('webp'), jpeg: rendition('jpg'), hash: 'def',
-  };
-  return { video, poster, title: 'A talk' };
+  return { video, title: 'A talk' };
 }
 
 const player = {
@@ -95,7 +95,6 @@ test('popup and labels are attributes the element reads, and a quote in either c
 
 test('bad input is refused rather than rendered half-right', () => {
   expect(() => renderPlayer({ ...source(), title: '' }), 'no title').toThrow(/needs a title/);
-  expect(() => renderPlayer({ ...source(), poster: { ...source().poster, id: 'other' } }), 'wrong poster').toThrow(/was given poster "other"/);
   expect(() => renderPlayer({ ...source(), video: { ...source().video, v: 2 } as unknown as VideoManifest }), 'v2').toThrow(/format version 2/);
 });
 
@@ -105,7 +104,7 @@ test('the React component renders exactly what renderPlayer() writes', () => {
   expect(renderToStaticMarkup(createElement(Player, { ...s, ...options }))).toBe(renderPlayer(s, options));
 });
 
-const thumbnail = (id: string): ImageManifest => ({ ...source().poster, id });
+const thumbnail = (id: string): ImageManifest => ({ ...source().video.poster, id });
 
 test('a YouTube or Vimeo video renders as a link to it around its local thumbnail, so it works with no JavaScript', () => {
   const html = renderPlayer({ provider: 'youtube', id: 'dQw4w9WgXcQ', title: 'A talk', poster: thumbnail('youtube-dQw4w9WgXcQ') }, { popup: true });

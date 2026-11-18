@@ -44,7 +44,7 @@ const video = {
   height: 1080,
   duration: 14.2,
   audio: false,
-  poster: { id: 'festival-poster', placeholder, color: '#1d2433' },
+  poster: { ...image, id: 'festival-poster' },
   mp4: [
     { src: 'festival-480.mp4', width: 854, height: 480, codec: 'avc1.640028', bytes: 1820311 },
     { src: 'festival-480-av1.mp4', width: 854, height: 480, codec: 'av01.0.04M.08', bytes: 1200000 },
@@ -65,7 +65,7 @@ const valid = {
   'a video processed without HLS': videoWithoutHls,
   'a video that kept its audio': { ...video, audio: 'mp4a.40.2' },
   'a video whose poster is not its first frame': { ...video, poster: { ...video.poster, at: 3.5 } },
-  'a video whose poster blur did not fit': { ...video, poster: { id: 'festival-poster', color: '#1d2433' } },
+  'a video whose poster blur did not fit': { ...video, poster: { ...imageWithoutPlaceholder, id: 'festival-poster' } },
 } satisfies Record<string, Manifest>;
 
 const { v: _v, ...unversioned } = image;
@@ -88,6 +88,8 @@ const typo: Manifest = { ...image, widht: 1600 };
 const renditionTypo: Manifest = { ...image, avif: [{ ...image.avif[0], byte: 1 }] };
 // @ts-expect-error an image needs its AVIF renditions
 const noAvif: Manifest = imageWithoutAvif;
+// @ts-expect-error a poster is a full image manifest, not only its id and colour
+const posterStub: Manifest = { ...video, poster: { id: 'festival-poster', color: '#1d2433' } };
 // @ts-expect-error a video needs its poster
 const noPoster: Manifest = videoWithoutPoster;
 // @ts-expect-error a video rendition needs its codec
@@ -101,6 +103,7 @@ const invalid = {
   'a field the format does not define, inside a rendition': renditionTypo,
   'an image without AVIF renditions': noAvif,
   'a video without a poster': noPoster,
+  'a video whose poster is only an id and colour': posterStub,
   'a video rendition without a codec': noCodec,
 };
 

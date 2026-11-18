@@ -1,0 +1,20 @@
+{
+  "name": "@medkitjs/example-next",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "media": "medkit process && node -e \"require('node:fs').copyFileSync('../media/talk.en.vtt', 'public/media/talk.en.vtt')\"",
+    "dev": "pnpm media && next dev",
+    "build": "pnpm media && next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@medkitjs/elements": "workspace:*",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@medkitjs/cli": "workspace:*"
+  }
+}

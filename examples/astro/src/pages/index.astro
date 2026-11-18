@@ -1,0 +1,44 @@
+---
+import Image from '@medkitjs/elements/astro/Image';
+import Player from '@medkitjs/elements/astro/Player';
+import VideoBg from '@medkitjs/elements/astro/VideoBg';
+import lake from '../../../media/lake.jpg?medkit';
+import river from '../../../media/river.mp4?medkit';
+import talk from '../../../media/talk.mp4?medkit';
+import captions from '../../../media/talk.en.vtt?url&no-inline';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>medkit with Astro</title>
+    <meta name="description" content="medkit's image, background video and player in an Astro site, processed at build time by the Vite plugin." />
+    <style>
+      body { margin: 0; font: 1.125rem/1.5 system-ui, sans-serif; color: #111; }
+      main { max-width: 720px; margin: 0 auto; padding: 1rem; }
+      .hero h1 { margin: 0; padding: 30vh 1rem 1rem; color: #fff; font-size: clamp(2rem, 6vw, 3.5rem); }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <VideoBg
+        clips={[{ video: river, title: 'Colour drifting over the river', overlay: '<h1>medkit with Astro</h1>' }]}
+        controls="pause"
+        priority
+      />
+    </header>
+    <main>
+      <h2>An image</h2>
+      <Image manifest={lake} alt="A pale sun over a teal lake with dark hills in front" sizes="(min-width: 800px) 720px, 100vw" />
+      <h2>A video with sound and captions</h2>
+      <Player video={talk} title="A tone over shifting colour" captions={[{ src: captions, srclang: 'en', label: 'English', default: true }]} />
+    </main>
+    <script>
+      import '@medkitjs/elements/image';
+      import '@medkitjs/elements/video-bg';
+      import '@medkitjs/elements/player';
+    </script>
+  </body>
+</html>

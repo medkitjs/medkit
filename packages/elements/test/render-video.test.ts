@@ -16,6 +16,11 @@ import { renderPlayer } from '../src/render-player.js';
 const placeholder = 'data:image/webp;base64,UklGRhIAAABXRUJQVlA4IAYAAAAwAQCdASo=';
 
 function clip(id: string, extra: Partial<VideoManifest> = {}): VideoClip {
+  const rendition = (ext: string) => [640, 1280].map((w) => ({ src: `${id}-poster-${w}.${ext}`, width: w, height: (w * 9) / 16, bytes: 1 }));
+  const poster: ImageManifest = {
+    v: 1, id: `${id}-poster`, kind: 'image', width: 1920, height: 1080, placeholder, color: '#1d2433',
+    avif: rendition('avif'), webp: rendition('webp'), jpeg: rendition('jpg'), hash: 'def',
+  };
   const video: VideoManifest = {
     v: 1,
     id,
@@ -24,7 +29,7 @@ function clip(id: string, extra: Partial<VideoManifest> = {}): VideoClip {
     height: 1080,
     duration: 14.2,
     audio: false,
-    poster: { id: `${id}-poster`, placeholder, color: '#1d2433' },
+    poster,
     mp4: [
       { src: `${id}-480p.mp4`, width: 854, height: 480, codec: 'avc1.64001e', bytes: 1 },
       { src: `${id}-1080p.mp4`, width: 1920, height: 1080, codec: 'avc1.640028', bytes: 1 },
@@ -32,12 +37,7 @@ function clip(id: string, extra: Partial<VideoManifest> = {}): VideoClip {
     hash: 'abc',
     ...extra,
   };
-  const rendition = (ext: string) => [640, 1280].map((w) => ({ src: `${id}-poster-${w}.${ext}`, width: w, height: (w * 9) / 16, bytes: 1 }));
-  const poster: ImageManifest = {
-    v: 1, id: `${id}-poster`, kind: 'image', width: 1920, height: 1080, placeholder, color: '#1d2433',
-    avif: rendition('avif'), webp: rendition('webp'), jpeg: rendition('jpg'), hash: 'def',
-  };
-  return { video, poster, title: `Clip ${id}` };
+  return { video, title: `Clip ${id}` };
 }
 
 const attrs = (html: string, name: string) =>
@@ -86,7 +86,7 @@ describe('renderVideoBg', () => {
   });
 
   test('a clip that kept audio is marked for the sound button, and a poster time becomes the start', () => {
-    const [c] = attrs(renderVideoBg([clip('talk', { audio: 'mp4a.40.2', poster: { id: 'talk-poster', color: '#1d2433', at: 3.5 } })]), 'medkit-clip');
+    const [c] = attrs(renderVideoBg([clip('talk', { audio: 'mp4a.40.2', poster: { ...clip('talk').video.poster, at: 3.5 } })]), 'medkit-clip');
     expect(c).toMatchObject({ audio: '', start: '3.5' });
   });
 
@@ -139,9 +139,8 @@ describe('renderVideoBg', () => {
   test('bad input is refused rather than rendered half-right', () => {
     expect(() => renderVideoBg([]), 'no clips').toThrow(/at least one clip/);
     expect(() => renderVideoBg([{ ...clip('a'), title: '' }]), 'no title').toThrow(/needs a title/);
-    expect(() => renderVideoBg([{ ...clip('a'), poster: clip('b').poster }]), 'wrong poster').toThrow(/was given poster "b-poster", not "a-poster"/);
     expect(() => renderVideoBg([{ ...clip('a'), video: { ...clip('a').video, v: 2 } as unknown as VideoManifest }]), 'v2').toThrow(/format version 2/);
-    expect(() => renderVideoBg([{ ...clip('a'), poster: { ...clip('a').poster, color: 'red;x:y' } }]), 'colour').toThrow(/not a hex colour/);
+    expect(() => renderVideoBg([clip('a', { poster: { ...clip('a').video.poster, color: 'red;x:y' } })]), 'colour').toThrow(/not a hex colour/);
   });
 });
 

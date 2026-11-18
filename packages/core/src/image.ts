@@ -31,18 +31,31 @@ export async function processImage(input: string, options: ImageOptions = {}): P
   if (!ID.test(id)) {
     throw new Error(`${input}: "${id}" is not a usable id; rename the file or pass { id }`);
   }
-  const widths = options.widths ?? DEFAULT_WIDTHS;
-  const background = options.background ?? '#ffffff';
-
   const bytes = await readFile(input);
-  const hash = createHash('sha256')
-    .update(JSON.stringify({ PIPELINE_VERSION, id, widths, background }))
-    .update(bytes)
-    .digest('hex');
-
   const manifestPath = join(outDir, `${id}.json`);
   const previous = await readManifest(manifestPath);
-  if (previous?.hash === hash && (await allExist(previous, outDir))) return previous;
+  if (previous?.hash === imageHash(bytes, id, options) && (await allExist(previous, outDir))) return previous;
+
+  const manifest = await encodeImage(input, bytes, { ...options, outDir, id });
+  // Written last, so a manifest on disk always means every file it lists was written.
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  await removeOrphans(previous, manifest, outDir);
+  return manifest;
+}
+
+function imageHash(bytes: Buffer, id: string, { widths = DEFAULT_WIDTHS, background = '#ffffff' }: ImageOptions) {
+  return createHash('sha256').update(JSON.stringify({ PIPELINE_VERSION, id, widths, background })).update(bytes).digest('hex');
+}
+
+/**
+ * Encodes every rendition of `bytes` into `outDir` and returns the manifest,
+ * without reading or writing a manifest file: processImage() adds its own
+ * file and cache, and processVideo() embeds the result as the poster.
+ * `input` only names the file in warnings.
+ */
+export async function encodeImage(input: string, bytes: Buffer, options: ImageOptions & { outDir: string; id: string }): Promise<ImageManifest> {
+  const { outDir, id, widths = DEFAULT_WIDTHS, background = '#ffffff' } = options;
+  const hash = imageHash(bytes, id, options);
 
   // Decoding once to raw sRGB pixels applies EXIF orientation and leaves every
   // metadata block (EXIF, GPS, XMP, ICC) behind, because raw pixels carry none.
@@ -102,15 +115,18 @@ export async function processImage(input: string, options: ImageOptions = {}): P
     jpeg: renditions[2],
     hash,
   };
-  // Written last, so a manifest on disk always means every file it lists was written.
-  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  return manifest;
+}
 
-  // Only files the old manifest listed are ever deleted, and only plain file
-  // names: a tampered manifest listing ../anything deletes nothing.
-  const keep = new Set(listed(manifest));
+/**
+ * Deletes the files `previous` listed that `current` does not. Only files a
+ * manifest listed are ever deleted, and only plain file names: a tampered
+ * manifest listing ../anything deletes nothing.
+ */
+export async function removeOrphans(previous: ImageManifest | undefined, current: ImageManifest | undefined, outDir: string) {
+  const keep = new Set(listed(current));
   const orphans = listed(previous).filter((src) => !keep.has(src) && src === basename(src) && src !== '..');
   await Promise.all(orphans.map((src) => rm(join(outDir, src), { force: true })));
-  return manifest;
 }
 
 /** Ratio steps above this are cropped to a simpler ratio; below it, snapped widths stay within half a step of the standard ones. */
@@ -172,7 +188,7 @@ export async function readManifest(path: string): Promise<ImageManifest | undefi
 }
 
 /** Every file name a manifest lists, skipping anything malformed. */
-function listed(manifest: ImageManifest | undefined): string[] {
+export function listed(manifest: ImageManifest | undefined): string[] {
   if (!manifest) return [];
   return [manifest.avif, manifest.webp, manifest.jpeg]
     .flatMap((list) => (Array.isArray(list) ? list : []))

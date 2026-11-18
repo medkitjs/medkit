@@ -75,3 +75,36 @@ jobs:
           name: test-results-${{ matrix.browser }}
           path: test-results/**/trace.zip
           if-no-files-found: ignore
+
+  examples:
+    name: Example apps (${{ matrix.browser }})
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          check-latest: true
+          cache: pnpm
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+      # The PHP example is served by PHP's built-in server; the runner image ships PHP.
+      - run: php --version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm build:examples
+      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      - run: pnpm test:examples --project='${{ matrix.browser }}-*'
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: examples-results-${{ matrix.browser }}
+          path: test-results/**/trace.zip
+          if-no-files-found: ignore

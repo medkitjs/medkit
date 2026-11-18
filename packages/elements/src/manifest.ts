@@ -77,6 +77,16 @@ export interface ImageManifest {
   hash: Hash;
 }
 
+/** A video's poster: the image manifest of the frame it was taken from. */
+export interface PosterManifest extends ImageManifest {
+  /**
+   * Seconds into the clip the poster was taken from; absent for frame 0.
+   * Playback starts here, and loops return here.
+   * @exclusiveMinimum 0
+   */
+  at?: number;
+}
+
 /**
  * The files `<medkit-player>` plays for a video whose top-level set is a
  * silent background: what a background's expand opens.
@@ -110,19 +120,8 @@ export interface VideoManifest {
    * Every MP4 rendition and HLS variant carries the same track.
    */
   audio: false | 'mp4a.40.2';
-  poster: {
-    /** Id of the poster's own image manifest. */
-    id: ManifestId;
-    /** Absent when no blur fits in 600 characters; readers fall back to `color`. */
-    placeholder?: Placeholder;
-    color: HexColor;
-    /**
-     * Seconds into the clip the poster was taken from; absent for frame 0.
-     * Playback starts here, and loops return here.
-     * @exclusiveMinimum 0
-     */
-    at?: number;
-  };
+  /** Frame 0 (or `at`), as a full image manifest with id `<id>-poster`. */
+  poster: PosterManifest;
   /** @minItems 1 */
   mp4: VideoRendition[];
   /** Master playlist; absent when the video was processed without HLS. */
