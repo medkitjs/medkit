@@ -25,8 +25,6 @@ export interface Caption {
 
 export interface PlayerVideo {
   video: VideoManifest;
-  /** The poster's own image manifest, whose id the video manifest names. */
-  poster: ImageManifest;
   /** Names the popup and its button ("Play Summer on the river"); required. */
   title: string;
 }
@@ -116,9 +114,8 @@ export function playerInner(source: PlayerSource, { baseUrl = '/media/', caption
     const picture = renderPicture(source.poster, { alt: source.title, baseUrl, sizes });
     return tag('a', { href: WATCH[source.provider] + source.id, style: 'display:block' }) + picture + '</a>';
   }
-  const { video, poster } = source;
-  const v = read(video);
-  if (read(poster).id !== v.poster.id) throw new Error(`medkit: player "${v.id}" was given poster "${poster.id}", not "${v.poster.id}"`);
+  const v = read(source.video);
+  const poster = v.poster;
   const set = v.player ?? v;
   const audio = set.audio ? `, ${set.audio}` : '';
   // With no JavaScript the browser plays the first source it can: HLS where

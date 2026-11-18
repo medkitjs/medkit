@@ -1,6 +1,7 @@
 // Covers processVideo with real ffmpeg runs on short clips generated here: the
 // H.264 ladder, optional AV1, keyframes, faststart, audio and metadata
-// stripping, codec strings, trim and posterAt, the poster, HLS packaging, the
+// stripping, codec strings, trim and posterAt, the poster embedded in the
+// manifest with its cache and cleanup, HLS packaging, the
 // player set beside a silent background, the cache, orphan cleanup, and the bitrate cap per rung. Needs ffmpeg 6+ with libx264 and libsvtav1 on
 // PATH, and `pnpm build` (manifests are checked against the built schema).
 //
@@ -162,7 +163,7 @@ describe('processVideo', { timeout: 60_000 }, () => {
 
     expect(manifest.duration).toBeCloseTo(2, 1);
     expect(manifest.poster.at, 'a trimmed clip still starts its poster at 0').toBeUndefined();
-    const poster = join(dir, JSON.parse(await readFile(join(dir, `${manifest.poster.id}.json`), 'utf8')).jpeg.at(-1).src);
+    const poster = join(dir, manifest.poster.jpeg.at(-1)!.src);
     const posterThumb = await still(poster);
     expect(difference(posterThumb, await thumb(input, 2)), 'poster vs source at 2s').toBeLessThan(6);
     expect(difference(posterThumb, await thumb(input, 0)), 'poster vs source at 0s').toBeGreaterThan(difference(posterThumb, await thumb(input, 2)));
@@ -175,7 +176,7 @@ describe('processVideo', { timeout: 60_000 }, () => {
 
     expect(manifest.poster.at).toBe(3);
     expect(manifest.poster.id).toBe('hero-poster');
-    const poster = join(dir, JSON.parse(await readFile(join(dir, 'hero-poster.json'), 'utf8')).jpeg.at(-1).src);
+    const poster = join(dir, manifest.poster.jpeg.at(-1)!.src);
     expect(difference(await still(poster), await thumb(input, 3)), 'poster vs source at 3s').toBeLessThan(6);
   });
 
@@ -223,6 +224,25 @@ describe('processVideo', { timeout: 60_000 }, () => {
     expect(await readdir(join(dir, 'hero-player'))).toEqual([]);
   });
 
+  test('the poster is a full image manifest inside the video manifest, with no manifest file of its own', async () => {
+    const input = await clip('hero.mp4');
+    const manifest = await processVideo(input, { outDir: dir, ladder: [180] });
+
+    expect(manifest.poster).toMatchObject({ v: 1, id: 'hero-poster', kind: 'image', width: 320, height: 180 });
+    const files = await readdir(dir);
+    for (const { src } of [...manifest.poster.avif, ...manifest.poster.webp, ...manifest.poster.jpeg]) expect(files, 'a poster rendition').toContain(src);
+    expect(files, 'a separate poster manifest').not.toContain('hero-poster.json');
+  });
+
+  test('a missing poster file makes the next run encode again instead of reusing a manifest that lists it', async () => {
+    const input = await clip('hero.mp4');
+    const first = await processVideo(input, { outDir: dir, ladder: [180] });
+    await rm(join(dir, first.poster.webp[0].src));
+
+    await processVideo(input, { outDir: dir, ladder: [180] });
+    expect(await readdir(dir), 'the poster rendition, written again').toContain(first.poster.webp[0].src);
+  });
+
   test('a second run with the same file and options reuses every output', async () => {
     const input = await clip('hero.mp4');
     const first = await processVideo(input, { outDir: dir, ladder: [180] });
@@ -245,6 +265,18 @@ describe('processVideo', { timeout: 60_000 }, () => {
     const hls = await readdir(join(dir, 'talk'));
     expect(hls.filter((f) => f.startsWith('90p')), 'old variant files').toEqual([]);
     expect(hls).toContain('180p_000.m4s');
+  });
+
+  test("rewriting a manifest deletes the old poster's renditions that the new one does not list", async () => {
+    const input = await clip('hero.mp4');
+    const first = await processVideo(input, { outDir: dir, ladder: [180] });
+    const second = await processVideo(input, { outDir: dir, ladder: [90] });
+
+    const kept = new Set([...second.poster.avif, ...second.poster.webp, ...second.poster.jpeg].map((r) => r.src));
+    const gone = [...first.poster.avif, ...first.poster.webp, ...first.poster.jpeg].map((r) => r.src).filter((src) => !kept.has(src));
+    expect(gone.length, 'the two posters differ in size').toBeGreaterThan(0);
+    const files = await readdir(dir);
+    for (const src of gone) expect(files, 'an old poster rendition').not.toContain(src);
   });
 
   test('a tampered manifest whose id points outside outDir deletes nothing there', async () => {

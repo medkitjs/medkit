@@ -181,7 +181,7 @@ test('a video is encoded with its per-file options from medkit.config.js', async
   const manifest = JSON.parse(await readFile(join(dir, 'public/media/hero.json'), 'utf8'));
   expect(manifest.duration).toBeCloseTo(1, 1);
   expect(manifest.mp4.map((r: { src: string }) => r.src)).toEqual(['hero-90p.mp4']);
-  expect(await exists('public/media/hero-poster.json'), 'the poster manifest').toBe(true);
+  expect(manifest.poster.id, 'the poster, inside the video manifest').toBe('hero-poster');
 });
 
 test('a video.files path that matches no video is refused before anything is written', async () => {
@@ -195,7 +195,7 @@ test('a video.files path that matches no video is refused before anything is wri
   expect(await exists('public/media'), 'output was written anyway').toBe(false);
 });
 
-test("an image named like a video's poster is refused, because both would write the same manifest", async () => {
+test("an image named like a video's poster is refused, because both would write the same files", async () => {
   await video('src/media/hero.mp4');
   await image('src/media/hero-poster.png');
 

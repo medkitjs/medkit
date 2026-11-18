@@ -6,7 +6,7 @@ import { basename, extname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { PlayerSet, VideoManifest, VideoRendition } from '@medkitjs/elements';
 import { checkFfmpeg, ffmpeg, ffprobe } from './ffmpeg.js';
-import { processImage } from './image.js';
+import { encodeImage, listed as imageFiles } from './image.js';
 
 export interface VideoOptions {
   /** Where files and the manifest are written. Default `public/media`. */
@@ -195,9 +195,8 @@ export async function processVideo(input: string, options: VideoOptions = {}): P
   try {
     const png = join(tmp, 'poster.png');
     await ffmpeg([...(posterAt ? ['-ss', String(posterAt)] : []), '-i', join(outDir, h264.at(-1)!.src), '-frames:v', '1', png]);
-    const image = await processImage(png, { outDir, id: `${id}-poster` });
-    poster = { id: image.id, color: image.color };
-    if (image.placeholder) poster.placeholder = image.placeholder;
+    // Embedded, not written as its own manifest: one video manifest holds all a renderer needs.
+    poster = await encodeImage(`${input} (poster)`, await readFile(png), { outDir, id: `${id}-poster` });
     if (posterAt > 0) poster.at = posterAt;
   } finally {
     await rm(tmp, { recursive: true, force: true });
@@ -278,8 +277,9 @@ async function readManifest(path: string): Promise<VideoManifest | undefined> {
 }
 
 /**
- * Every file a manifest lists, relative to outDir: its MP4s, and its HLS
- * playlists and segments, for the background and the player set. The HLS
+ * Every file a manifest lists, relative to outDir: its MP4s, its poster's
+ * images, and its HLS playlists and segments, for the background and the
+ * player set. The HLS
  * folders come from `id`, the checked id being processed, never from the
  * file: a tampered manifest with an id of ".." must not point cleanup outside
  * outDir.
@@ -288,7 +288,7 @@ async function listed(manifest: VideoManifest | undefined, outDir: string, id: s
   if (!manifest) return [];
   const plain = (name: unknown): name is string => typeof name === 'string' && name === basename(name) && name !== '..';
   const rows = (list: unknown) => (Array.isArray(list) ? (list as { src?: unknown }[]) : []).map((r) => r?.src).filter(plain);
-  const files = [...rows(manifest.mp4), ...rows(manifest.player?.mp4)];
+  const files = [...rows(manifest.mp4), ...rows(manifest.player?.mp4), ...imageFiles(manifest.poster).filter(plain)];
   for (const [hls, dir] of [[manifest.hls, id], [manifest.player?.hls, `${id}-player`]] as [unknown, string][]) {
     if (hls !== `${dir}/master.m3u8`) continue;
     const uris = async (playlist: string) => {
@@ -304,7 +304,7 @@ async function listed(manifest: VideoManifest | undefined, outDir: string, id: s
 }
 
 async function allExist(manifest: VideoManifest, outDir: string, id: string): Promise<boolean> {
-  const files = [...(await listed(manifest, outDir, id)), `${id}-poster.json`];
+  const files = await listed(manifest, outDir, id);
   return Promise.all(files.map((f) => access(join(outDir, f)))).then(
     () => true,
     () => false,

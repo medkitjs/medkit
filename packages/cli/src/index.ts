@@ -25,7 +25,7 @@ const VIDEO = new Set(['.mp4', '.mov', '.m4v', '.webm', '.mkv']);
 
 const kind = (file: string) => (IMAGE.has(extname(file).toLowerCase()) ? 'image' : VIDEO.has(extname(file).toLowerCase()) ? 'video' : undefined);
 
-/** Every manifest id a file writes: its own, plus its poster's for a video. */
+/** Every id a file's outputs are named after: its own, plus its poster's for a video. */
 function claims(file: string): string[] {
   const id = basename(file, extname(file));
   return kind(file) === 'video' ? [id, `${id}-poster`] : [id];
