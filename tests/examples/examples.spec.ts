@@ -66,8 +66,13 @@ test('the cumulative layout shift is 0', async ({ page, browserName }) => {
     w.cls = [];
     addEventListener('DOMContentLoaded', () => w.webVitals.onCLS((metric) => w.cls.push(metric.value), { reportAllChanges: true }));
   });
+  // Tall enough to hold the whole page: CLS counts only shifts inside the
+  // viewport, and while scrolling, Chromium's scroll anchoring hides a shift
+  // below the fold (an image without dimensions passed the scrolling version).
+  await page.setViewportSize({ width: 1280, height: 3000 });
   await page.goto('/');
-  await visitAll(page);
+  await page.waitForLoadState('networkidle');
+  expect(await page.evaluate(() => document.documentElement.scrollHeight), 'the page fits the viewport, so every shift counts').toBeLessThanOrEqual(3000);
   // web-vitals reports the final CLS when the page is hidden.
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
