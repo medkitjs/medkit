@@ -258,7 +258,9 @@ export class MedkitVideoBg extends HTMLElement {
     video.onended = () => {
       if (this.autoadvance) return this.go(this.index + 1, false);
       video.currentTime = start;
-      video.play().catch(() => {});
+      // Through sync, not play(): an `ended` already queued when the tab hid
+      // or the element left the screen runs after their pause.
+      this.sync();
     };
     video.onplay = video.onpause = () => {
       if (video !== this.video) return;

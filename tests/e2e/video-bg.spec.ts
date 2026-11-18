@@ -120,6 +120,20 @@ test('it pauses when less than 10% is on screen or the tab is hidden, and resume
   await expect.poll(paused, 'did not resume in a visible tab').toBe(false);
 });
 
+test('a clip whose end arrives after the tab was hidden loops back without playing', async ({ page }) => {
+  await page.goto(PAGE);
+  await expect.poll(() => isPlaying(page, 'bg')).toBe(true);
+  // The order a real `ended` takes when it is already queued as the tab hides:
+  // the pause runs first, then the loop handler.
+  const paused = await video(page, 'bg').evaluate((v: HTMLVideoElement) => {
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    v.dispatchEvent(new Event('ended'));
+    return new Promise((r) => setTimeout(() => r(v.paused), 300));
+  });
+  expect(paused, 'playing in a hidden tab').toBe(true);
+});
+
 test("after the visitor pauses, coming back on screen does not override them", async ({ page }) => {
   await page.goto(PAGE);
   await expect.poll(() => isPlaying(page, 'bg')).toBe(true);
