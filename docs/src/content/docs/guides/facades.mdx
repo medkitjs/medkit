@@ -1,0 +1,34 @@
+---
+title: YouTube and Vimeo facades
+description: Show a local thumbnail and a play button, and load the provider's player only when the visitor presses play.
+sidebar: { order: 6 }
+---
+
+An embedded YouTube or Vimeo player loads the provider's script and sets its cookies before
+anyone presses play, for a video most visitors never start. A facade shows a thumbnail instead, and loads the player
+on click.
+
+```sh
+pnpm exec medkit thumbnail youtube:dQw4w9WgXcQ
+```
+
+```js
+renderPlayer({ provider: 'youtube', id: 'dQw4w9WgXcQ', title: 'A talk', poster: youtubeManifest }, { popup: true });
+```
+
+| Moment | What loads |
+| --- | --- |
+| Page load | The local thumbnail only, fetched and processed at build time |
+| Hover or focus | A preconnect to the provider |
+| Click | The provider's iframe, autoplaying, from `youtube-nocookie.com` for YouTube, focused, titled |
+| No JavaScript | A link to the video around the thumbnail |
+
+YouTube's `maxresdefault` thumbnail is tried first, then `hqdefault`, whose letterbox bars
+are cropped out. Vimeo's comes from its oEmbed API.
+
+## What it does not do
+
+- Once loaded, the provider's own controls and overlays show; medkit's control bar does not
+  apply to them.
+- In a popup, closing removes the iframe, which is the only way to stop a cross-origin player
+  without its API, so reopening starts the video over.

@@ -1,0 +1,80 @@
+---
+title: HTML, PHP and Laravel
+description: Use medkit without a JavaScript framework, by rendering HTML partials at build time and loading the element modules directly.
+sidebar: { order: 3 }
+---
+
+PHP cannot call `renderImage()`, so a small Node script calls it at build time and writes
+HTML partials, which PHP outputs as they are. One renderer, no PHP port to drift from it.
+The complete app is [`examples/php`](https://github.com/medkitjs/medkit/tree/main/examples/php).
+
+```sh
+pnpm add @medkitjs/elements
+pnpm add -D @medkitjs/cli
+```
+
+## 1. Process and render at build time
+
+```json title="package.json"
+{ "scripts": { "build": "medkit process && node render.js" } }
+```
+
+```js title="render.js"
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { renderImage, renderPlayer, renderVideoBg } from '@medkitjs/elements';
+
+const manifest = (id) => JSON.parse(readFileSync(`public/media/${id}.json`, 'utf8'));
+
+mkdirSync('partials', { recursive: true });
+writeFileSync('partials/hero.html', renderVideoBg([{ video: manifest('river'), title: 'Colour drifting over the river' }], { priority: true }));
+writeFileSync('partials/lake.html', renderImage(manifest('lake'), { alt: 'A pale sun over a teal lake', sizes: '100vw' }));
+writeFileSync('partials/talk.html', renderPlayer({ video: manifest('talk'), title: 'A tone over shifting colour' }));
+
+// No bundler: copy the element modules where the browser can load them.
+cpSync(dirname(fileURLToPath(import.meta.resolve('@medkitjs/elements'))), 'public/medkit', { recursive: true });
+```
+
+## 2. Output the partials
+
+```php title="public/index.php"
+<?php function partial(string $name): void { readfile(__DIR__ . "/../partials/{$name}.html"); } ?>
+<script type="module" src="/medkit/image.js"></script>
+<script type="module" src="/medkit/video-bg.js"></script>
+<script type="module" src="/medkit/player.js"></script>
+
+<?php partial('hero'); ?>
+<?php partial('lake'); ?>
+<?php partial('talk'); ?>
+```
+
+`readfile`, not `include`: the partials are output as text, so nothing in them can ever run
+as PHP.
+
+## Laravel
+
+Laravel's Vite build already brings Node, so the same script runs as part of it:
+
+```json title="package.json"
+{ "scripts": { "build": "medkit process && node render.js && vite build" } }
+```
+
+Write the partials into `resources/views/partials/medkit/` as `.html` files and output them
+with `{!! file_get_contents(resource_path('views/partials/medkit/hero.html')) !!}`, not
+`@include`, for the same reason as `readfile` above. Import the elements from
+`resources/js/app.js`, where Vite bundles them:
+
+```js title="resources/js/app.js"
+import '@medkitjs/elements/image';
+import '@medkitjs/elements/video-bg';
+import '@medkitjs/elements/player';
+```
+
+The Laravel pattern is documented, not tested: the tested app is the plain PHP one.
+
+## Content from a CMS
+
+Partials suit media known at build time. For images an editor uploads, the planned
+on-upload hook comes after v0.1; until then, run `medkit process` when media changes, or use
+a [CDN loader](../../guides/cdn-loaders/), which needs no processing at all.

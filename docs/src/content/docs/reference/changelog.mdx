@@ -1,0 +1,12 @@
+---
+title: Changelog
+description: What changed in each medkit release; every package shares one version.
+sidebar: { order: 5 }
+---
+
+export const changelog = Object.values(import.meta.glob('../../../../../packages/elements/CHANGELOG.md', { eager: true }))[0];
+
+Every `@medkitjs` package releases together under one version. Versions follow semver; while
+on 0.x, a minor version may break things, and each break is listed with how to migrate.
+
+{changelog ? <changelog.Content /> : <p>No release yet: v0.1.0 is the first. Changesets writes this page's content when a version is cut.</p>}

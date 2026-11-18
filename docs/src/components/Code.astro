@@ -1,0 +1,11 @@
+---
+// A long block of generated text, such as a manifest. Focusable, so a keyboard
+// can scroll it, and named, so that focus says what it is.
+interface Props {
+  label: string;
+  text: string;
+}
+const { label, text } = Astro.props;
+---
+
+<pre tabindex="0" aria-label={label} style="overflow: auto; max-height: 32rem"><code>{text}</code></pre>

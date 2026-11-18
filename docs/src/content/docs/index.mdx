@@ -1,0 +1,50 @@
+---
+title: medkit
+description: Images, background video and a media player as three accessible custom elements with no client dependencies, from media processed at build time with sharp and ffmpeg.
+template: splash
+---
+
+import VideoBg from '@medkitjs/elements/astro/VideoBg';
+import Elements from '../../components/Elements.astro';
+import hero from '../../hero.js';
+import { baseUrl } from '../../media.js';
+import limits from '../../../../.size-limit.json' with { type: 'json' };
+
+export const total = limits.find((l) => Array.isArray(l.path)).limit;
+
+<VideoBg clips={[hero]} baseUrl={baseUrl} controls="pause" priority />
+<Elements />
+
+**Media that works before JavaScript does, and never moves the page when it arrives.**
+medkit processes your images and videos at build time, and the server writes finished
+HTML: a `<picture>`, a poster with its video, a native `<video controls>`. Three custom
+elements then improve what is already working. If the script never loads, nothing is broken.
+
+```sh
+pnpm add @medkitjs/elements
+pnpm add -D @medkitjs/cli     # or @medkitjs/vite, for Vite and Astro
+```
+
+## What you get
+
+| Element | Without JavaScript | With it |
+| --- | --- | --- |
+| [`<medkit-image>`](elements/image/) | A responsive `<picture>` with AVIF, WebP and JPEG, its size reserved | A blur that fades into the image |
+| [`<medkit-video-bg>`](elements/video-bg/) | The first frame as a poster, and your overlay | A muted background video that never shows a black frame, with a pause button |
+| [`<medkit-player>`](elements/player/) | The browser's own `<video controls>` | One keyboard-friendly control bar, captions, speed, popup, YouTube and Vimeo facades |
+
+The three elements have no dependencies and a {total} gzipped budget together, which CI
+enforces; see [performance budgets](reference/budgets/).
+
+## What it will not do
+
+- **Upload anything.** Processed files land in a folder; you sync it with your own tools.
+- **Process on demand.** Media is processed when you build, not on request. An on-demand
+  route is planned after v0.1.
+- **Play adaptive bitrate without HLS.** The background picks one MP4 rendition by size and
+  connection; the player uses HLS where the browser plays it, or hls.js when you opt in.
+- **Ship languages other than English.** Every label can be replaced; see
+  [translations](guides/translations/).
+
+Pick your stack to start: [Astro](getting-started/astro/), [Next.js](getting-started/nextjs/)
+or [plain HTML, PHP and Laravel](getting-started/html-php-laravel/).

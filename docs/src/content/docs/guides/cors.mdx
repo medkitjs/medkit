@@ -1,0 +1,43 @@
+---
+title: CORS for S3 and R2
+description: What needs CORS headers when media is served from another origin, and the bucket settings for Amazon S3 and Cloudflare R2.
+sidebar: { order: 2 }
+---
+
+Manifests store file names only, so serving from a bucket is `baseUrl: 'https://media.example.com/'`
+and syncing `outDir` there. Most of it then works with no CORS at all:
+
+| Request | Needs CORS | Why |
+| --- | --- | --- |
+| Images and posters | No | medkit never adds `crossorigin` to an `<img>`: one with it fails outright on a host that sends no CORS headers |
+| MP4 played by `<video>` | No | Played without reading the bytes from script |
+| Caption `.vtt` on another origin | Yes | A `<track>` is read only with CORS; `renderPlayer()` adds `crossorigin` when a caption URL is absolute |
+| HLS played by hls.js | Yes | hls.js fetches playlists and segments from script |
+| The poster's timing, for the speed step-down | `Timing-Allow-Origin` | Without it the browser reports 0 bytes and the background ignores the poster's speed |
+
+## Amazon S3
+
+Bucket → Permissions → Cross-origin resource sharing:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://www.example.com"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "MaxAgeSeconds": 86400
+  }
+]
+```
+
+S3 cannot send `Timing-Allow-Origin` by itself; add it with a CloudFront response headers
+policy, or go without the poster-speed step-down. `navigator.connection` still steps down in
+Chromium.
+
+## Cloudflare R2
+
+Bucket → Settings → CORS policy, with the same JSON as S3. `Timing-Allow-Origin` can be added
+with a Transform Rule (Modify response header) on the bucket's custom domain.
+
+These settings are written from each provider's documentation; medkit's tests run against a
+same-origin server, not against S3 or R2.

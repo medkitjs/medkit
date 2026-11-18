@@ -1,0 +1,32 @@
+---
+title: Accessibility
+description: What medkit commits to for WCAG 2.2 AA with no configuration, and how it is tested.
+sidebar: { order: 3 }
+---
+
+The target is WCAG 2.2 AA with no configuration. Where AA is loose, medkit goes further: touch
+targets are 44 × 44 px, not the 24 px minimum.
+
+| Area | Commitment |
+| --- | --- |
+| Images | `alt` is required; a decorative image says so with `alt=""` |
+| Motion | A background always has a pause button unless every clip is under 5 s (2.2.2). Reduced motion skips video, fades and crossfades. Pausing stops auto-advance |
+| Keyboard | Every control is reachable with Tab, focus is always visible (2 px outline, 3:1), shortcuts apply only inside the player |
+| Screen readers | Real buttons; toggles say what they will do; the seek bar reads "1:23 of 4:56"; decorative video is hidden; announcements only on manual changes |
+| Captions | `<track>` with a captions menu, following the visitor's caption style settings |
+| Touch | Every control at least 44 × 44 px |
+| Contrast | Control icons keep 3:1 against any video, over a soft dark backdrop |
+| Popup | Native `<dialog>` with a name; Esc closes it; focus stays inside and returns afterwards |
+| High contrast | Controls stay visible with `forced-colors` |
+
+## How it is tested
+
+| Check | Where | When |
+| --- | --- | --- |
+| axe, WCAG 2.2 AA rules | Every fixture page and every example app, Chromium, Firefox, WebKit | Every pull request |
+| 44 px targets | Every control at 390 × 844 | Every pull request |
+| NVDA with Firefox and Chrome | By hand, from a checklist | Before every minor release |
+| VoiceOver on macOS and iOS, TalkBack | By hand | Before a minor release, when a device is available |
+
+Automated rules catch only part of what a screen reader user meets; the hand checks cover
+the rest. VoiceOver and TalkBack had not been run for v0.1.0 when this page was written.

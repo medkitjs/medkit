@@ -1,0 +1,74 @@
+---
+title: Astro
+description: Use medkit in an Astro site, with media processed by the Vite plugin when you import it.
+sidebar: { order: 1 }
+---
+
+Astro runs on Vite, so the Vite plugin processes each image or video the moment a page
+imports it, and caches the result. The complete app is
+[`examples/astro`](https://github.com/medkitjs/medkit/tree/main/examples/astro).
+
+```sh
+pnpm add @medkitjs/elements
+pnpm add -D @medkitjs/vite
+```
+
+ffmpeg must be on your `PATH` for video; images need nothing else. See
+[CLI](../../processing/cli/#ffmpeg) for how to check.
+
+## 1. Add the plugin
+
+```js title="astro.config.mjs"
+import medkit from '@medkitjs/vite';
+import { defineConfig } from 'astro/config';
+
+export default defineConfig({
+  vite: { plugins: [medkit()] },
+});
+```
+
+Files go to `public/media` and are served from `/media/` unless
+[`medkit.config.js`](../../processing/config/) says otherwise. Add `public/media/` to
+`.gitignore`: it is build output.
+
+## 2. Import media and render it
+
+```astro title="src/pages/index.astro"
+---
+import Image from '@medkitjs/elements/astro/Image';
+import Player from '@medkitjs/elements/astro/Player';
+import VideoBg from '@medkitjs/elements/astro/VideoBg';
+import lake from '../media/lake.jpg?medkit';
+import river from '../media/river.mp4?medkit';
+import talk from '../media/talk.mp4?medkit';
+import captions from '../media/talk.en.vtt?url&no-inline';
+---
+
+<VideoBg clips={[{ video: river, title: 'Colour drifting over the river' }]} controls="pause" priority />
+<Image manifest={lake} alt="A pale sun over a teal lake" sizes="(min-width: 800px) 720px, 100vw" />
+<Player video={talk} title="A tone over shifting colour" captions={[{ src: captions, srclang: 'en', label: 'English', default: true }]} />
+
+<script>
+  import '@medkitjs/elements/image';
+  import '@medkitjs/elements/video-bg';
+  import '@medkitjs/elements/player';
+</script>
+```
+
+The components write the finished HTML at build time, so the page works before the
+`<script>` runs. Import only the elements a page uses: each is its own module.
+
+Captions need `&no-inline`. Without it, Vite inlines a small `.vtt` as a `data:` URL, which a
+`<track>` may refuse.
+
+## 3. Types
+
+`?medkit` imports are typed by extension: an image gives an `ImageManifest`, a video a
+`VideoManifest`. Add the declarations to `tsconfig.json`:
+
+```json title="tsconfig.json"
+{ "compilerOptions": { "types": ["@medkitjs/vite/client"] } }
+```
+
+`.astro` files themselves are not type-checked by medkit's components yet
+([#2](https://github.com/medkitjs/medkit/issues/2)).

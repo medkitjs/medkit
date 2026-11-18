@@ -168,3 +168,7 @@ tmp/*
 examples/*/public/media/
 examples/php/partials/
 examples/php/public/medkit/
+
+# The docs site's processed media and build
+docs/public/media/
+docs/public/medkit/

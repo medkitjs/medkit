@@ -1,0 +1,17 @@
+/* code-preview-element in Starlight's colours, so its tabs and controls follow
+   the light and dark themes with Starlight's own contrast. */
+code-preview {
+  --code-preview-bg: var(--sl-color-bg);
+  --code-preview-fg: var(--sl-color-text);
+  --code-preview-fg-muted: var(--sl-color-gray-3);
+  --code-preview-border: var(--sl-color-hairline);
+  --code-preview-accent: var(--sl-color-text-accent);
+}
+
+/* The editor writes `white-space: pre-wrap` on the block when it upgrades, so
+   a long rendered line would wrap only then and move the page. Wrapped from
+   the first paint, the block's height does not change at upgrade. */
+code-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}

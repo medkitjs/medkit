@@ -1,0 +1,42 @@
+---
+title: CI and Git LFS
+description: Commit the originals, generate the renditions in CI, and keep the output between runs so only new media is processed.
+sidebar: { order: 4 }
+---
+
+Commit the originals, not the renditions: they are dozens of files per source, and rebuilt
+from the originals at will. Process in CI, and keep `outDir` between runs, so a run processes
+only what changed.
+
+```yaml title=".github/workflows/build.yml"
+- uses: actions/checkout@v7
+  with:
+    lfs: true # only if your originals are in Git LFS
+- run: sudo apt-get install -y ffmpeg
+- uses: actions/cache@v6
+  with:
+    path: public/media
+    key: media-${{ hashFiles('src/media/**', 'medkit.config.js') }}
+    restore-keys: media-
+- run: pnpm exec medkit process
+```
+
+The `restore-keys` line matters: when one file changes, the cache key misses, the previous
+output is restored anyway, and medkit's own hash skips every file that did not change.
+
+## Git LFS for video
+
+| Original size | Store it |
+| --- | --- |
+| Under about 15 MB | In Git; a short H.264 export at CRF 18 usually is |
+| Larger | In Git LFS: `git lfs track "*.mp4" "*.mov"` |
+
+LFS costs something: every checkout that needs the files must ask for them (`lfs: true`), and
+each draws on the hosting plan's LFS bandwidth. Give `lfs: true` only to the jobs that
+process media.
+
+## Committing the output instead
+
+For a platform with no ffmpeg, or encodes too long for CI, commit `outDir` and skip the
+process step. The cost is a large repository and renditions that can drift from their
+originals unless someone reruns `medkit process`.

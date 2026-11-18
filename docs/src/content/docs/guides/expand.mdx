@@ -1,0 +1,41 @@
+---
+title: Expand and popup
+description: Let a visitor open a background clip in the player's popup, with sound, at the moment it was at, and return to it.
+sidebar: { order: 5 }
+---
+
+A background is silent and small; sometimes the visitor wants the real thing. With `expand`
+in `controls`, the background's expand button opens the clip in a `<medkit-player>` popup,
+at the same moment, with sound. Closing it resumes the background from where the popup
+stopped, unless the visitor had paused it before.
+
+```js
+renderVideoBg([{ video, title: 'Summer on the river', captions: [{ src: '/media/river.en.vtt', srclang: 'en', label: 'English' }] }], {
+  controls: 'pause sound expand',
+});
+```
+
+The popup plays the manifest's `player` set: process the video with
+`player: { keepAudio: true, hls: true }` so the popup has sound and higher renditions while
+the background stays silent and light.
+
+## Handling it yourself
+
+The button fires `medkit-expand` first, with `{ index, clip, src, currentTime }`. Call
+`preventDefault()` to open your own player instead.
+
+## A popup on its own
+
+`renderPlayer(source, { popup: true })` renders a thumbnail button with the duration; a click
+opens the player in a native modal `<dialog>`. Before JavaScript the video plays inline, and
+the thumbnail takes the same box, so nothing moves.
+
+Esc, the close button or a click outside closes it. Playback pauses, focus returns to what
+opened it, and `medkit-popupclose` carries `currentTime`.
+
+## Why the popup markup is checked
+
+The popup's markup travels in an attribute, so the element parses it inert and opens it only
+if it holds exactly the elements and attributes `renderPlayer()` writes, with http(s) URLs.
+Anything else warns and opens nothing. A CMS that lets custom-element attributes through its
+sanitizer would otherwise let `<img onerror>` run on expand.

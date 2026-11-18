@@ -100,7 +100,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm build:examples
+      - run: pnpm build:docs
       - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      # The example apps and the docs site, each on its production build.
       - run: pnpm test:examples --project='${{ matrix.browser }}-*'
       - uses: actions/upload-artifact@v7
         if: failure()

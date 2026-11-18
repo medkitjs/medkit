@@ -18,6 +18,7 @@
   "scripts": {
     "build": "pnpm -r --filter \"./packages/*\" build",
     "build:examples": "pnpm -r --filter \"./examples/*\" build",
+    "build:docs": "pnpm --filter @medkitjs/docs build",
     "lint": "tsc -b && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:e2e": "playwright test",

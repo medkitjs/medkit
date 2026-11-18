@@ -1,0 +1,17 @@
+{
+  "name": "@medkitjs/docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "vite preview --host 127.0.0.1 --port 4322 --strictPort --outDir dist --base /medkit/"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.43.1",
+    "@medkitjs/elements": "workspace:*",
+    "@medkitjs/vite": "workspace:*",
+    "astro": "^7.4.9",
+    "code-preview-element": "^3.0.4"
+  }
+}

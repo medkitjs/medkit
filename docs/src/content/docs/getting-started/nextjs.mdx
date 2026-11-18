@@ -1,0 +1,86 @@
+---
+title: Next.js
+description: Use medkit in a Next.js app, with media processed by the medkit CLI before next build.
+sidebar: { order: 2 }
+---
+
+Next.js does not use Vite, so the CLI processes the media folder before each build, and
+pages import the manifests it writes. The complete app is
+[`examples/next`](https://github.com/medkitjs/medkit/tree/main/examples/next).
+
+```sh
+pnpm add @medkitjs/elements
+pnpm add -D @medkitjs/cli
+```
+
+## 1. Process before building
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev": "medkit process && next dev",
+    "build": "medkit process && next build"
+  }
+}
+```
+
+`medkit process` reads `src/media` and writes to `public/media`, which Next serves at
+`/media/`. Both folders can change in [`medkit.config.js`](../../processing/config/). A
+second run skips every file that has not changed. Add `public/media/` to `.gitignore`.
+
+## 2. Render on the server
+
+```jsx title="app/page.jsx"
+import { Image, Player, VideoBg } from '@medkitjs/elements/react';
+import lake from '../public/media/lake.json';
+import river from '../public/media/river.json';
+import talk from '../public/media/talk.json';
+
+export default function Page() {
+  return (
+    <>
+      <VideoBg clips={[{ video: river, title: 'Colour drifting over the river', overlay: <h1>Hello</h1> }]} controls="pause" priority />
+      <Image manifest={lake} alt="A pale sun over a teal lake" sizes="(min-width: 800px) 720px, 100vw" />
+      <Player video={talk} title="A tone over shifting colour" />
+    </>
+  );
+}
+```
+
+The components are plain server components: they render the same HTML as `renderImage()`,
+`renderVideoBg()` and `renderPlayer()`, byte for byte.
+
+## 3. Upgrade in the browser
+
+Client components render on the server too, where `customElements` does not exist, so import
+the elements in an effect:
+
+```jsx title="app/elements.jsx"
+'use client';
+
+import { useEffect } from 'react';
+
+export default function Elements() {
+  useEffect(() => {
+    import('@medkitjs/elements/image');
+    import('@medkitjs/elements/video-bg');
+    import('@medkitjs/elements/player');
+  }, []);
+  return null;
+}
+```
+
+Render `<Elements />` once, in the root layout.
+
+## Why not `next/image`
+
+| | `next/image` | medkit |
+| --- | --- | --- |
+| Processing | On request, by the Next server or a paid image service | At build time, once |
+| Static export (`output: export`) | Needs `unoptimized` or a custom loader | Works as is |
+| Video | None | Background and player |
+| Blur placeholder | Yes | Yes, at most 600 characters inline |
+| Ships with Next | Yes | One more dependency, 1.6 KB for the image element |
+
+If every page is server-rendered on Vercel and you only need images, `next/image` is less
+to set up.

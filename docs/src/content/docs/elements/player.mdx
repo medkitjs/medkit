@@ -1,0 +1,96 @@
+---
+title: medkit-player
+description: One accessible control bar for native video and audio, with captions, speed, picture-in-picture, a popup, and YouTube and Vimeo facades.
+sidebar: { order: 3 }
+---
+
+import { renderPlayer } from '@medkitjs/elements';
+import Api from '../../../components/Api.astro';
+import Preview from '../../../components/Preview.astro';
+import talk from '../../../../../examples/media/talk.mp4?medkit';
+import captions from '../../../../../examples/media/talk.en.vtt?url&no-inline';
+import { baseUrl } from '../../../media.js';
+
+export const sample = renderPlayer({ video: talk, title: 'A tone over shifting colour' }, { baseUrl, captions: [{ src: captions, srclang: 'en', label: 'English', default: true }] });
+
+The player wraps a native `<video>` or `<audio>`, so it plays before JavaScript loads, with
+the browser's own controls. Once it does, the element replaces them with one control bar that
+works the same in every browser, by mouse, touch, keyboard and screen reader.
+
+<Preview code={sample} elements={['player']} options ratio={talk.height / talk.width} />
+
+## Rendering it
+
+`renderPlayer(source, options)`, or the React and Astro `Player` components. The source is
+`{ video, title }` for your own video, or `{ provider, id, title, poster }` for a
+[YouTube or Vimeo facade](../../guides/facades/).
+
+| Option | What it does | Default |
+| --- | --- | --- |
+| `captions` | `[{ src, srclang, label, default? }]`, WebVTT files | none |
+| `popup` | A thumbnail button that opens the player in a dialog | off |
+| `audio` | Only the sound, as a compact bar | off |
+| `labels` | Replacement labels; see [translations](../../guides/translations/) | English |
+| `baseUrl` | Where the files are served | `/media/` |
+
+## What it plays
+
+It chooses at the first play, not before. The manifest's `player` set comes first when it
+has one, else the top-level renditions. Where the browser plays HLS itself (Safari, iOS), it
+does. Where it does not, [hls.js plays it if you opt in](../../guides/hls/). Otherwise it
+plays the smallest MP4 that covers its width × device pixel ratio.
+
+## Keyboard
+
+Shortcuts work only while focus is inside the player, never page-wide.
+
+| Key | Action |
+| --- | --- |
+| Space or K | Play / pause |
+| ← / → | Back / forward 5 seconds |
+| J / L | Back / forward 10 seconds |
+| ↑ / ↓ | Volume up / down 5% |
+| M | Mute |
+| C | Captions on / off |
+| F | Fullscreen |
+| Shift + < / > | Slower / faster |
+| Home / End, 0–9 | Start / end, jump to 0–90% |
+| Esc | Close the popup |
+
+## The control bar
+
+Play, seek with the time, mute and volume, captions, speed (0.5× to 2×), picture-in-picture,
+fullscreen. It shows while paused, on pointer movement and on focus, and fades after 2.5 s of
+playback without interaction; never while focus is inside it or a menu is open.
+
+Volume is hidden on iOS and iPadOS, where a page cannot set it, and on an audio bar narrower
+than 400 px. On iPhone, which has no element fullscreen, fullscreen is the video's own.
+
+## Audio
+
+Wrapping `<audio>` gives a one-row bar 52 px high, with the same keyboard map minus
+fullscreen and picture-in-picture. `renderPlayer(…, { audio: true })` reserves exactly that
+height. Hand-written markup must reserve it too, or the page moves by the difference between
+the browser's native controls (54 px in Chromium, 40 in Firefox, 31 in WebKit) and the bar:
+
+```html
+<medkit-player style="display:block;height:52px">
+  <audio controls src="/media/talk.m4a" style="display:block;width:100%;height:52px"></audio>
+</medkit-player>
+```
+
+## API
+
+<Api tag="medkit-player" />
+
+Media events (`play`, `timeupdate`, …) fire on the wrapped `<video>` or `<audio>` and do not
+bubble: listen there, or on the player with `capture: true`.
+
+## Accessibility
+
+- Every control is a real button, slider or `<select>` with a name, at least 44 × 44 px; the
+  seek bar reads as "1:23 of 4:56".
+- Captions follow the visitor's caption style settings. In development, a video with sound
+  and no captions track gets a warning, as does a player with no title.
+- The popup is a native modal `<dialog>` named by the title: focus moves into it, stays in it,
+  and returns to the thumbnail when it closes.

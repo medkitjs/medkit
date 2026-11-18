@@ -1,0 +1,32 @@
+---
+title: Intro colour
+description: Show a flat colour instead of the first poster, so a page with a background video requests no poster when the video plays.
+sidebar: { order: 4 }
+---
+
+By default the first clip's poster loads first and stays until the video's first frame has
+painted. That is one image request even when the video then plays. `intro` replaces it with a
+colour:
+
+```js
+renderVideoBg(clips, { intro: '#1d2433', priority: true });
+```
+
+The colour shows until the first painted frame, then the video fades in over 200 ms. The
+poster is still written, inside a `<noscript>`: with JavaScript it is text, and nothing is
+fetched. When no video will play (reduced motion, Save-Data, 2G, a connection slower than the
+smallest rendition, or refused autoplay), the element parses it and shows the poster over the
+colour. With no JavaScript, the browser shows it.
+
+| | Poster (default) | `intro` |
+| --- | --- | --- |
+| Requests before the video | Poster | None |
+| First thing seen | The first frame | A flat colour, then a fade |
+| No video will play | Poster | Poster, fetched then |
+| Clips after the first | Posters | Posters: the crossfade and Previous/Next need them |
+
+Not a `<template>`: Firefox's speculative parser fetches images inside one, which would cost
+the request `intro` exists to save.
+
+The value is checked when rendering: a hex colour, a keyword, or one colour function such as
+`rgb()` or `oklch()`. `var()` and anything that could add a declaration are refused.

@@ -1,0 +1,39 @@
+---
+title: HLS and hls.js
+description: Play HLS natively where the browser can, through hls.js where you opt in, and as MP4 everywhere else.
+sidebar: { order: 7 }
+---
+
+Process with `hls: true`, or `player: { hls: true }`, and the player's markup lists the HLS
+playlist before the MP4 renditions. What plays it:
+
+| Browser | Plays |
+| --- | --- |
+| Browsers that play HLS themselves, such as Safari and iOS | Native HLS |
+| Others, with hls.js registered | HLS through hls.js, loaded at the first play |
+| Others, without | The smallest MP4 that covers the player's width |
+
+The player never imports hls.js itself, so a build without it installed succeeds and a page
+that never plays HLS never downloads it.
+
+## Opting in
+
+With a bundler:
+
+```sh
+pnpm add hls.js
+```
+
+```js
+import '@medkitjs/elements/hls';
+```
+
+With no bundler:
+
+```js
+import { configure } from '/medkit/index.js';
+configure({ hls: () => import('https://cdn.jsdelivr.net/npm/hls.js@1.7.4/dist/hls.mjs') });
+```
+
+A fatal hls.js error falls back to MP4, with a console warning. HLS from another origin
+needs [CORS](../cors/).
