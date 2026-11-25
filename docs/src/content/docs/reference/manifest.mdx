@@ -1,0 +1,38 @@
+---
+title: Manifest format
+description: The JSON file medkit writes per source image or video, which every renderer reads; version 1.
+sidebar: { order: 1 }
+---
+
+import Code from '../../../components/Code.astro';
+import lake from '../../../../../examples/media/lake.jpg?medkit';
+import river from '../../../../../examples/media/river.mp4?medkit';
+
+export const json = (m) => JSON.stringify(m, null, 2);
+
+One JSON file per source, `<id>.json` in `outDir`, holds everything a renderer needs. The
+TypeScript types in `@medkitjs/elements` are the source of the format; a JSON Schema generated
+from them ships as `@medkitjs/elements/manifest.schema.json`.
+
+| Field | Rule |
+| --- | --- |
+| `v` | Format version, `1`. A reader that meets a version it does not know stops rather than guessing |
+| `src`, `hls` | Relative to `baseUrl`: no leading `/`, no scheme, no `..`, so a manifest cannot point outside the media folder |
+| `placeholder` | A data URI of at most 600 characters; absent when no blur fits, and readers fall back to `color` |
+| `hash` | Lowercase hex SHA-256 of the source bytes, the options and the pipeline version; only equality matters |
+| `audio` | `false`, or the kept track's codec string, `mp4a.40.2` |
+| `poster` | A video's poster: a full image manifest, plus `at` when it was not taken at 0 s |
+| `player` | Optional second set of files for the player that expand opens: `{ audio, mp4, hls? }` |
+
+## An image
+
+This is the manifest of the image on this site's [image page](../../elements/image/), as
+processed when the site was built:
+
+<Code label="An image manifest" text={json(lake)} />
+
+## A video
+
+The home page's background, with its poster inside:
+
+<Code label="A video manifest" text={json(river)} />

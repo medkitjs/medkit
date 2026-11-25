@@ -164,3 +164,11 @@ examples/html/player-embed.html
 
 # Temporary files
 tmp/*
+# Media the example apps process at build time
+examples/*/public/media/
+examples/php/partials/
+examples/php/public/medkit/
+
+# The docs site's processed media and build
+docs/public/media/
+docs/public/medkit/

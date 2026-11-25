@@ -1,0 +1,49 @@
+---
+title: Vite plugin
+description: Import an image or video with ?medkit and get its manifest, processed during dev and build; covers Astro too.
+sidebar: { order: 2 }
+---
+
+```js title="vite.config.js"
+import medkit from '@medkitjs/vite';
+
+export default { plugins: [medkit()] };
+```
+
+```js
+import hero from './media/hero.jpg?medkit'; // an ImageManifest
+import intro from './media/intro.mp4?medkit'; // a VideoManifest, its poster inside
+```
+
+The file is processed into `outDir` when the import is first loaded, in dev and in build, and
+the import gives its [manifest](../../reference/manifest/). The same cache as the CLI makes
+every later load free. With `outDir` inside Vite's `public/` folder, as by default, the files
+ship with the build.
+
+It takes no options: everything is in [`medkit.config.js`](../config/), read from the Vite
+root, so one config serves the plugin and the CLI.
+
+## What fails the build
+
+| Mistake | Why it is an error |
+| --- | --- |
+| A `video.files` key naming no video in `srcDir` | A typo would silently encode with the defaults |
+| Two sources with the same file name | They would overwrite each other's output |
+| `?medkit` on anything but an image or a video | There is nothing to process |
+
+A `?medkit` import outside `srcDir` works, with the video defaults: no `video.files` key can
+reach it.
+
+## In dev
+
+The dev server refuses a `?medkit` file outside `server.fs.allow`. Without that, a request for
+`/@fs/<any path>.jpg?medkit` could have any image on the machine processed into `outDir` and
+served: Vite's own check does not cover what a plugin loads.
+
+## Types
+
+```json title="tsconfig.json"
+{ "compilerOptions": { "types": ["@medkitjs/vite/client"] } }
+```
+
+Imports are typed by extension. `.JPG` in capitals falls back to the union of both manifests.

@@ -1,5 +1,5 @@
-// Server-side rendering for <medkit-video-bg>: pure functions from video and
-// poster manifests to HTML, with no DOM and no ffmpeg. The output shows each
+// Server-side rendering for <medkit-video-bg>: pure functions from video
+// manifests, posters included, to HTML, with no DOM and no ffmpeg. The output shows each
 // clip's poster, blur and overlay with no JavaScript; the element adds video.
 //
 // The markup is byte-identical to what the React component renders, so the
@@ -7,15 +7,13 @@
 // written exactly as React writes them.
 
 import { checkColour, checkCss, fallback, srcset, tag } from './html.js';
-import type { ImageManifest, VideoManifest } from './manifest.js';
+import type { VideoManifest } from './manifest.js';
 import type { Labels } from './strings.js';
 import { read, urls } from './render.js';
 import { renderPlayer, type Caption } from './render-player.js';
 
 export interface VideoClip {
   video: VideoManifest;
-  /** The poster's own image manifest, whose id the video manifest names. */
-  poster: ImageManifest;
   /** Announced on manual changes ("Crowd at night, 2 of 4"); required. */
   title: string;
   /** HTML shown over the clip, such as a heading and a link; trusted, not escaped. */
@@ -64,10 +62,9 @@ export function hostAttrs(clips: Pick<VideoClip, 'video'>[], { controls = 'pause
 }
 
 /** One `<medkit-clip>`'s attributes, in the order React writes them. */
-export function clipAttrs({ video, poster, title, captions }: Omit<VideoClip, 'overlay'>, i: number, { baseUrl = '/media/', controls = 'pause', labels }: RenderVideoBgOptions) {
+export function clipAttrs({ video, title, captions }: Omit<VideoClip, 'overlay'>, i: number, { baseUrl = '/media/', controls = 'pause', labels }: RenderVideoBgOptions) {
   const v = read(video);
   if (typeof title !== 'string' || !title) throw new Error(`medkit: clip "${v.id}" needs a title, which is announced`);
-  if (read(poster).id !== v.poster.id) throw new Error(`medkit: clip "${v.id}" was given poster "${poster.id}", not "${v.poster.id}"`);
   return {
     src: v.id,
     title,
@@ -81,7 +78,7 @@ export function clipAttrs({ video, poster, title, captions }: Omit<VideoClip, 'o
     ),
     // The popup expand opens, as renderPlayer() writes it: the manifest's
     // player set with sound when it has one. Read only on expand.
-    player: controls.split(/\s+/).includes('expand') ? renderPlayer({ video, poster, title }, { baseUrl, captions, popup: true, labels }) : undefined,
+    player: controls.split(/\s+/).includes('expand') ? renderPlayer({ video, title }, { baseUrl, captions, popup: true, labels }) : undefined,
     // Only the first clip shows with no JavaScript; the element shows the rest.
     hidden: i ? '' : undefined,
     style: 'display:block;position:absolute;inset:0',
@@ -94,14 +91,15 @@ export function clipAttrs({ video, poster, title, captions }: Omit<VideoClip, 'o
  * text otherwise, which the element parses when no video will play. Not a
  * `<template>`: Firefox's speculative parser fetches images inside one.
  */
-export function posterPicture(clip: Pick<VideoClip, 'video' | 'poster'>, i: number, options: RenderVideoBgOptions) {
+export function posterPicture(clip: Pick<VideoClip, 'video'>, i: number, options: RenderVideoBgOptions) {
   const html = picture(clip, i, options);
   return options.intro && !i ? `<noscript>${html}</noscript>` : html;
 }
 
-function picture({ video, poster }: Pick<VideoClip, 'video' | 'poster'>, i: number, { priority, baseUrl = '/media/', sizes = '100vw' }: RenderVideoBgOptions) {
+function picture({ video }: Pick<VideoClip, 'video'>, i: number, { priority, baseUrl = '/media/', sizes = '100vw' }: RenderVideoBgOptions) {
+  const poster = read(video).poster;
   checkCss('cover', poster.color);
-  const blur = video.poster.placeholder ? ` url(${video.poster.placeholder}) center/cover no-repeat` : '';
+  const blur = poster.placeholder ? ` url(${poster.placeholder}) center/cover no-repeat` : '';
   const eager = priority && i === 0;
   const jpeg = urls(poster.jpeg, baseUrl);
   return (

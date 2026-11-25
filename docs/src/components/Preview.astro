@@ -1,0 +1,49 @@
+---
+// A live, editable sample: code-preview-element renders the markup in a frame
+// above it. The frame loads the element modules itself, so the sample is
+// exactly what a page with no bundler would write. The code is focusable
+// because the editor makes it a scroll region (overflow-y: auto), which a
+// keyboard can scroll only once it has focus.
+import { elementsUrl } from '../media.js';
+
+interface Props {
+  /** The sample's markup, shown and rendered as written. */
+  code: string;
+  /** Which element modules the frame loads. */
+  elements: ('image' | 'video-bg' | 'player')[];
+  /** Open the options panel built from custom-elements.json. */
+  options?: boolean;
+  /** Extra head markup for the frame, such as a style rule. */
+  head?: string;
+  /** The sample's height over its width, so its frame's height is reserved before it renders. */
+  ratio: number;
+}
+
+const { code, elements, options = false, head = '', ratio } = Astro.props;
+// The frame pads its body by 1rem on every side; the sample fills the rest of
+// the width. Without this, the frame grows after load and moves the page.
+const height = `calc((100cqw - 2rem) * ${ratio} + 2rem)`;
+// The frame takes the page's data-theme; with a colour scheme different from
+// the page's, Chrome paints the frame opaque white behind the sample.
+const FRAME_CSS = 'html{background:transparent}html[data-theme=dark]{color-scheme:dark}body{margin:0;padding:1rem;font-family:system-ui}';
+const scripts = elements.map((name) => `<script type="module" src="${elementsUrl}${name}.js"></script>`).join('');
+---
+
+<!-- not-content: Starlight's prose margins would grow the preview's bars past their reserved height. -->
+<div class="not-content" style="container-type: inline-size">
+<code-preview
+  style={`--code-preview-height: ${height}`}
+  head={`<style>${FRAME_CSS}</style>${scripts}${head}`}
+  manifest={options ? `${elementsUrl}custom-elements.json` : undefined}
+>
+  <pre><code class="language-html" tabindex="0">{code}</code></pre>
+</code-preview>
+</div>
+
+<script>
+  import 'code-preview-element/hljs';
+  import 'code-preview-element/options';
+  import 'code-preview-element/style';
+  // No 'code-preview-element/theme': its token colours fall under 4.5:1 on
+  // Starlight's light background, so the samples stay one colour.
+</script>

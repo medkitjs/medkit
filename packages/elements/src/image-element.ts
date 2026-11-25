@@ -13,6 +13,21 @@ import { pending, registry } from './registry.js';
  * With no `<img>` inside but a `src`, it renders one itself through a CDN
  * loader set with configure(); that path needs no build step, and needs
  * `aspect-ratio` on the element to reserve its box before it renders.
+ *
+ * @tagname medkit-image
+ * @slot - The `<picture>` renderImage() writes; empty for a CDN image rendered from `src`.
+ * @attr {boolean} priority - Hero image: never fades in, so it can be the largest paint at once.
+ * @attr {string} src - CDN image: the source path its loader turns into URLs. Used only with no `<img>` inside.
+ * @attr {string} alt - CDN image: alternative text; write `alt=""` for a decorative image.
+ * @attr {number} width - CDN image: intrinsic width, required.
+ * @attr {number} height - CDN image: intrinsic height, required.
+ * @attr {string} sizes - CDN image: how wide the image displays. Default `100vw`.
+ * @attr {number} quality - CDN image: quality for the loader; without it, the CDN picks one.
+ * @attr {string} loader - CDN image: a loader name from `configure({ loaders })`; without it, `configure({ loader })`.
+ * @attr {string} color - CDN image: a CSS colour behind the image while it loads.
+ * @attr {'blur' | 'color' | 'none'} placeholder - CDN image: what shows while it loads. Default `blur`.
+ * @attr {string} fit - CDN image: `object-fit`. Default `cover`.
+ * @attr {string} position - CDN image: `object-position`. Default `center`.
  */
 export class MedkitImage extends HTMLElement {
   connectedCallback() {

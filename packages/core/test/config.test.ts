@@ -1,4 +1,4 @@
-// Covers loadConfig: defaults without a file, resolving outDir against the
+// Covers loadConfig: defaults without a file, resolving srcDir and outDir against the
 // config's folder, the trailing slash on baseUrl, video defaults and per-file
 // options, and refusing a config that would otherwise silently fall back to
 // defaults.
@@ -20,17 +20,19 @@ afterEach(() => rm(dir, { recursive: true, force: true }));
 
 const write = (body: string) => writeFile(join(dir, 'medkit.config.js'), body);
 
-test('without a config file, media goes to public/media and is served from /media/', async () => {
+test('without a config file, media comes from src/media, goes to public/media and is served from /media/', async () => {
   expect(await loadConfig(dir)).toEqual({
+    srcDir: join(dir, 'src/media'),
     outDir: join(dir, 'public/media'),
     baseUrl: '/media/',
     video: { ladder: [480, 720, 1080], av1: false, hls: false, keepAudio: false, maxrate: { 480: 800, 720: 1600, 1080: 3000 }, files: {} },
   });
 });
 
-test('outDir is resolved against the folder holding the config, and baseUrl always ends in a slash', async () => {
-  await write(`export default { outDir: 'public/assets/video', baseUrl: 'https://cdn.example.com/media' };`);
+test('srcDir and outDir are resolved against the folder holding the config, and baseUrl always ends in a slash', async () => {
+  await write(`export default { srcDir: 'assets', outDir: 'public/assets/video', baseUrl: 'https://cdn.example.com/media' };`);
   expect(await loadConfig(dir)).toMatchObject({
+    srcDir: join(dir, 'assets'),
     outDir: join(dir, 'public/assets/video'),
     baseUrl: 'https://cdn.example.com/media/',
   });
@@ -44,6 +46,11 @@ test('a misspelt option is an error instead of a silent default', async () => {
 test('an option of the wrong type is an error', async () => {
   await write(`export default { baseUrl: 42 };`);
   await expect(loadConfig(dir)).rejects.toThrow(/"baseUrl" must be a non-empty string/);
+});
+
+test('an empty srcDir is an error, not the config folder itself', async () => {
+  await write(`export default { srcDir: '' };`);
+  await expect(loadConfig(dir)).rejects.toThrow(/"srcDir" must be a non-empty string/);
 });
 
 test('a config without a default export is an error', async () => {

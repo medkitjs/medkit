@@ -50,10 +50,9 @@ test('the Astro VideoBg component renders exactly what renderVideoBg() writes', 
   const clip: VideoClip = {
     title: "Summer's night",
     overlay: '<h2>On the river</h2>',
-    poster,
     video: {
       v: 1, id: 'festival', kind: 'video', width: 1920, height: 1080, duration: 6, audio: false,
-      poster: { id: 'festival-poster', color: '#1d2433' },
+      poster,
       mp4: [{ src: 'festival-480p.mp4', width: 854, height: 480, codec: 'avc1.64001e', bytes: 1 }],
       hash: 'abc',
     },
@@ -67,11 +66,11 @@ test('the Astro Player component renders exactly what renderPlayer() writes', as
   const poster: ImageManifest = { ...hero, id: 'talk-poster' };
   const video = {
     v: 1 as const, id: 'talk', kind: 'video' as const, width: 1600, height: 900, duration: 3, audio: false as const,
-    poster: { id: 'talk-poster', color: '#1d2433' },
+    poster,
     mp4: [{ src: 'talk-480p.mp4', width: 854, height: 480, codec: 'avc1.64001e', bytes: 1 }], hash: 'abc',
   };
-  const props = { video, poster, title: `A "quoted" talk`, popup: true, labels: { play: 'Pusti' } };
+  const props = { video, title: `A "quoted" talk`, popup: true, labels: { play: 'Pusti' } };
   const container = await AstroContainer.create();
   const html = await container.renderToString(Player, { props });
-  expect(html.trim()).toBe(renderPlayer({ video, poster, title: props.title }, { popup: true, labels: props.labels }));
+  expect(html.trim()).toBe(renderPlayer({ video, title: props.title }, { popup: true, labels: props.labels }));
 });

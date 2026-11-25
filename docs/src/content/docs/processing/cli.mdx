@@ -1,0 +1,59 @@
+---
+title: CLI
+description: medkit process turns a folder of images and videos into responsive renditions and manifests; medkit thumbnail fetches YouTube and Vimeo posters.
+sidebar: { order: 1 }
+---
+
+```sh
+pnpm add -D @medkitjs/cli
+pnpm exec medkit process            # srcDir from medkit.config.js, src/media by default
+pnpm exec medkit process assets/raw --out public/media --watch
+```
+
+| Flag | What it does | Default |
+| --- | --- | --- |
+| `[dir]` | The source folder, nested folders included | `srcDir`, `src/media` |
+| `--out <dir>` | Where files go, instead of `outDir` | `outDir`, `public/media` |
+| `--watch` | Keep running and process files as they change | off |
+| `--concurrency <n>` | Files processed at once | the smaller of 4 and the CPU count |
+
+Images (`.jpg`, `.png`, `.webp`, `.avif`, `.tif`, `.gif`) and videos (`.mp4`, `.mov`,
+`.m4v`, `.webm`, `.mkv`) are processed together; anything else is ignored. Each source
+writes its renditions and one `<name>.json` [manifest](../../reference/manifest/), named by
+its file name, so two sources named `hero` in different folders are refused before anything
+is written, rather than overwriting each other.
+
+## When it fails
+
+It exits with 1 when any file fails, after processing the rest, so CI catches a broken file
+without losing the others. A usage mistake exits with 2 and prints the usage. A config with
+an unknown option, a wrong type, or a `video.files` entry naming no video is an error, not a
+silent default.
+
+## Caching
+
+Each manifest records a hash of the source's bytes, its options and the pipeline version. A
+run whose hash matches, with every file the manifest lists present, does nothing. When a
+manifest is rewritten, the files only the old one listed are deleted; nothing a manifest did
+not list is ever touched.
+
+## ffmpeg
+
+Video needs ffmpeg 6 or newer and ffprobe on `PATH`, built with libx264, plus libsvtav1 for
+`av1: true`. Ubuntu's and Homebrew's builds have both. It is checked once, before anything is
+written, and only when the folder has videos; images need only sharp, which installs with the
+CLI.
+
+```sh
+ffmpeg -hide_banner -encoders | grep -E 'libx264|libsvtav1'
+```
+
+## Thumbnails for YouTube and Vimeo
+
+```sh
+pnpm exec medkit thumbnail youtube:dQw4w9WgXcQ vimeo:76979871
+```
+
+Fetches each video's thumbnail once, at build time, and runs it through the image pipeline
+as the manifest `youtube-<id>` or `vimeo-<id>`. While that manifest and its files exist in
+`outDir`, it is not fetched again. See [facades](../../guides/facades/).

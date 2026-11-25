@@ -1,0 +1,83 @@
+---
+title: medkit-video-bg
+description: A muted background video that never shows a black frame, with a pause button, sound, expand and a playlist.
+sidebar: { order: 2 }
+---
+
+import { renderVideoBg } from '@medkitjs/elements';
+import Api from '../../../components/Api.astro';
+import Preview from '../../../components/Preview.astro';
+import river from '../../../../../examples/media/river.mp4?medkit';
+import { baseUrl } from '../../../media.js';
+
+export const sample = renderVideoBg([{ video: river, title: 'Colour drifting over a river', overlay: '<h2 style="margin:0;padding:4rem 1rem 1rem;color:#fff">Over the river</h2>' }], { controls: 'pause', baseUrl });
+
+Background video goes wrong in one way everyone has seen: a black rectangle, or a frozen
+frame with a spinner, before the picture arrives. medkit shows the video's first frame as a
+poster, and hands over to the video only once a real frame has painted, so the switch cannot
+be seen. With no JavaScript, the poster and your overlay are the page.
+
+<Preview code={sample} elements={['video-bg']} options ratio={river.height / river.width} />
+
+The options tab writes attributes into the sample above, so the code keeps showing what is
+rendered.
+
+## Rendering it
+
+`renderVideoBg(clips, options)`, or the React and Astro `VideoBg` components, which write the
+same bytes. Each clip is `{ video, title, overlay?, captions? }`: the video's manifest, which
+holds its poster; a title, announced when a visitor switches clips; HTML shown over the clip
+(a React node with React); and caption tracks for the popup that expand opens.
+
+| Option | What it does | Default |
+| --- | --- | --- |
+| `controls` | `pause`, `sound`, `expand`, `nav`, space-separated | `pause` |
+| `autoadvance` | Start the next clip when one ends, instead of looping | off |
+| `priority` | The first poster loads at high priority, for a hero | off |
+| `intro` | A colour instead of the first poster; see [intro colour](../../guides/intro/) | none |
+| `labels` | Replacement labels; see [translations](../../guides/translations/) | English |
+| `baseUrl`, `sizes` | Where the files are served; how wide the poster displays | `/media/`, `100vw` |
+
+## When it plays
+
+1. Nothing but the poster loads until the element is within 200 px of the viewport.
+2. With reduced motion, Save-Data or a 2G connection, the poster stays and no video loads.
+3. It picks the smallest rendition that covers its width × device pixel ratio, up to 1080p,
+   AV1 where encoded and supported. It steps down for a slow connection, measured from
+   `navigator.connection` where it exists, and from how fast the poster arrived.
+4. It starts once the browser can play through, or 3 s are buffered ahead, or after 5 s
+   whatever happens. Until then the poster, which is the first frame, stays.
+5. It pauses when less than 10% is on screen or the tab is hidden, and resumes when both come
+   back, unless the visitor paused it. A visitor's pause is remembered for the session.
+6. A stall mid-play keeps the last frame, with no spinner, and resumes on its own.
+
+If autoplay is refused, as in iOS Low Power Mode, the poster stays and the pause button
+offers play.
+
+## Controls
+
+| Control | What it does |
+| --- | --- |
+| `pause` | Pause and play. Always shown, unless every clip is under 5 seconds (WCAG 2.2.2) |
+| `sound` | Turn sound on or off; shown only for a clip that kept its audio |
+| `expand` | Opens the clip in the [player's popup](../../guides/expand/), with sound, at the same moment |
+| `nav` | Previous and next, with "2 / 4", which screen readers hear as "2 of 4" |
+
+With two or more clips, each loops until the visitor presses Next, or with `autoadvance`
+plays the next when it ends. At 75% through a clip, only the next clip's poster and first
+seconds are fetched, and nothing with Save-Data. Clips crossfade over 400 ms, or cut with
+reduced motion.
+
+## API
+
+<Api tag="medkit-video-bg" />
+
+## Accessibility
+
+- The video is decorative and hidden from assistive technology; the clip's title and overlay
+  carry its meaning.
+- Every control is a real `<button>` at least 44 × 44 px, whose label says what it will do
+  ("Turn sound on").
+- Inactive clips' overlays are `inert`. A manual switch is announced politely ("Crowd at
+  night, 2 of 4"); an automatic one is not.
+- Controls stay visible in Windows high contrast mode.

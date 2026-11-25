@@ -109,6 +109,29 @@ export const clock = (s: number) => {
  * control bar and a keyboard map that applies only while focus is inside. The
  * media element plays on its own before this runs, and keeps playing if it
  * never does.
+ *
+ * @tagname medkit-player
+ * @slot - The `<video>` or `<audio>` to control, or for a facade, the link around its thumbnail.
+ * @attr {boolean} popup - Show a thumbnail button that opens the player in a modal dialog.
+ * @attr {boolean} audio - Compact one-row bar for an `<audio>`.
+ * @attr {string} title - The video's title: names the dialog, the popup thumbnail and a facade's iframe.
+ * @attr {number} duration - Seconds, shown on the popup thumbnail before the media's metadata loads.
+ * @attr {string} sources - JSON list of MP4 renditions, as renderPlayer() writes it; the player picks one by width at the first play.
+ * @attr {string} hls - URL of the HLS master playlist, played natively or through a registered hls.js.
+ * @attr {'youtube' | 'vimeo'} provider - Facade: the provider whose player loads on click.
+ * @attr {string} video-id - Facade: the video's id at its provider.
+ * @attr {boolean} sound - Written by renderPlayer() when the media has sound; the development build warns when it has no captions.
+ * @attr {string} labels - JSON overriding this element's labels, with the keys of `configure({ labels })`.
+ * @fires medkit-popupopen - The popup opened.
+ * @fires {CustomEvent<{ currentTime: number }>} medkit-popupclose - The popup closed, with where playback stopped.
+ * @csspart controls - The control bar.
+ * @csspart button - Each control button.
+ * @csspart seek - The seek slider.
+ * @csspart volume - The volume slider.
+ * @csspart menu - The captions and speed menus, native `<select>`s.
+ * @cssprop [--medkit-accent=#fff] - Focus outline and slider colour.
+ * @cssprop [--medkit-control-size=44px] - Height and minimum width of each control; keep it at least 44px.
+ * @cssprop [--medkit-radius=4px] - Corner radius of controls and the popup thumbnail.
  */
 export class MedkitPlayer extends HTMLElement {
   media!: HTMLMediaElement;

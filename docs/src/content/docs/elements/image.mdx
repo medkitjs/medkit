@@ -1,0 +1,86 @@
+---
+title: medkit-image
+description: A responsive picture with AVIF, WebP and JPEG, a blur placeholder and no layout shift, which works with no JavaScript.
+sidebar: { order: 1 }
+---
+
+import { renderImage } from '@medkitjs/elements';
+import Api from '../../../components/Api.astro';
+import Preview from '../../../components/Preview.astro';
+import lake from '../../../../../examples/media/lake.jpg?medkit';
+import { baseUrl } from '../../../media.js';
+
+export const sample = renderImage(lake, { alt: 'A pale sun over a teal lake with dark hills in front', sizes: '100vw', baseUrl });
+
+The server writes a complete `<picture>` inside the element, its width and height reserving
+the box, so the image displays with no JavaScript and loading it moves nothing. The element
+only fades the image in over its blur and, in development, warns about mistakes.
+
+Nobody writes this markup by hand: it is what `renderImage()` and the `Image` components
+write from a manifest. Edit it below to see what each part does.
+
+<Preview code={sample} elements={['image']} ratio={lake.height / lake.width} />
+
+## Rendering it
+
+| From | Call |
+| --- | --- |
+| Any template, PHP, Rails | `renderImage(manifest, options)` returns the HTML |
+| React, Next.js | `<Image manifest={manifest} {...options} />` from `@medkitjs/elements/react` |
+| Astro | `<Image manifest={manifest} {...options} />` from `@medkitjs/elements/astro/Image` |
+
+| Option | What it does | Default |
+| --- | --- | --- |
+| `alt` | Alternative text; required. Write `alt: ''` for a decorative image | — |
+| `sizes` | How wide the image displays, so the browser picks the right file | `100vw` |
+| `priority` | For the hero: eager loading, `fetchpriority="high"`, no fade | off |
+| `placeholder` | `blur`, `color` (the dominant colour) or `none` | `blur` |
+| `fit`, `position` | `object-fit` and `object-position` | `cover`, `center` |
+| `baseUrl` | Where the files are served, ending in `/` | `/media/` |
+| `art` | Other crops, as `[{ media, manifest }]`, checked before the main image | none |
+
+## The hero image
+
+`priority` makes the image load eagerly at high priority, and never fades it: Chromium does
+not count an image at opacity 0 as the largest paint, so a fade would delay the page's LCP.
+`preloadTags(manifest, { sizes })` returns the `<link rel="preload">` for the `<head>`, so
+the browser starts the download before it parses the body. Use it for one image per page,
+the one at the top.
+
+## Art direction
+
+A different crop for a different screen is its own source image, with its own manifest:
+
+```js
+renderImage(hero, { alt: '…', art: [{ media: '(max-width: 640px)', manifest: heroPortrait }] });
+```
+
+Each crop becomes a `<source media>` with its own width and height, so switching between
+them moves nothing.
+
+## The blur placeholder
+
+A blurred WebP about 20 px wide is inlined as the picture's background, as a data URI of at
+most 600 characters, because every page carries that string. When no blur fits, the
+manifest has none and the dominant colour shows instead. With reduced motion, the image
+swaps in without a fade.
+
+## Development warnings
+
+`@medkitjs/elements/image` resolves to a development build under a bundler's `development`
+condition, which warns about a missing `alt`, missing dimensions, more than one `priority`
+image, a `priority` image that is not the largest paint, and a file delivered more than twice
+the size it is displayed.
+
+## API
+
+<Api tag="medkit-image" />
+
+The CDN attributes are for an image rendered in the browser, with no build step; see
+[CDN loaders](../../guides/cdn-loaders/).
+
+## Accessibility
+
+- `alt` is required by `renderImage()`; a decorative image says so with `alt=""`.
+- Nothing moves while the image loads: the picture's width and height are written by the
+  server, and every rendition has exactly the declared ratio.

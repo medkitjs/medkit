@@ -1,0 +1,40 @@
+---
+title: Translations
+description: Replace any label, register a language, or override labels per element; with a template of every key.
+sidebar: { order: 3 }
+---
+
+import { strings } from '../../../../../packages/elements/dist/strings.js';
+import Code from '../../../components/Code.astro';
+import { playerStrings } from '../../../../../packages/elements/dist/player-element.js';
+
+export const template = JSON.stringify({ ...strings, ...playerStrings }, null, 2);
+
+Only English ships. Every visible and spoken label can be replaced, in three places, checked
+in this order:
+
+| Where | How | For |
+| --- | --- | --- |
+| One element | `labels='{"play":"Pusti"}'` attribute, or `labels` passed to a renderer or component | A one-off |
+| A language | `registerLocale('sr', { … })`, picked by the element's nearest `lang` | A site in another language |
+| Everywhere | `configure({ labels: { … } })` | Rewording English |
+
+A key left out falls back to the next place, then to English. `registerLocale('sr', …)` also
+covers `sr-Latn` and `sr-Cyrl`. Elements read labels when they connect, so register before
+the elements' modules run, or before you add elements to the page.
+
+```js
+import { registerLocale } from '@medkitjs/elements';
+
+registerLocale('sr', { play: 'Pusti', pause: 'Pauziraj', next: 'Sledeći video' });
+```
+
+Placeholders such as `{current}` and `{total}` keep word order translatable:
+`{current} od {total}` is as valid as `{current} of {total}`.
+
+## Every key
+
+Copy it, translate the values, and delete what you keep in English. This list is read from
+the elements' own string tables when the docs are built, so it is never out of date.
+
+<Code label="Every label key, in English" text={template} />

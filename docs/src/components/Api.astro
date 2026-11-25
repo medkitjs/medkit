@@ -1,0 +1,63 @@
+---
+// An element's attributes, events, CSS parts and custom properties, read from
+// the custom-elements.json the elements package ships, which is generated from
+// the elements' own source; so these tables cannot disagree with the code.
+import manifest from '@medkitjs/elements/custom-elements.json' with { type: 'json' };
+
+interface Props {
+  tag: 'medkit-image' | 'medkit-video-bg' | 'medkit-player';
+}
+
+interface Row {
+  name: string;
+  description?: string;
+  default?: string;
+  type?: { text: string };
+}
+
+const declaration = manifest.modules.flatMap((m) => m.declarations ?? []).find((d) => 'tagName' in d && d.tagName === Astro.props.tag) as
+  | { attributes?: Row[]; events?: Row[]; cssParts?: Row[]; cssProperties?: Row[] }
+  | undefined;
+if (!declaration) throw new Error(`custom-elements.json has no ${Astro.props.tag}`);
+
+const sections = [
+  { title: 'Attributes', rows: declaration.attributes, type: true },
+  { title: 'Events', rows: declaration.events, type: true },
+  { title: 'CSS parts', rows: declaration.cssParts, type: false },
+  { title: 'CSS custom properties', rows: declaration.cssProperties, type: false },
+].filter((s) => s.rows?.length);
+---
+
+{
+  sections.map(({ title, rows, type }) => (
+    <>
+      <h3>{title}</h3>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            {type && <th scope="col">Type</th>}
+            <th scope="col">What it does</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows!.map((row) => (
+            <tr>
+              <td>
+                <code>{row.name}</code>
+                {row.default && (
+                  <>
+                    <br />
+                    default <code>{row.default}</code>
+                  </>
+                )}
+              </td>
+              {type && <td>{row.type ? <code>{row.type.text}</code> : '—'}</td>}
+              <td>{row.description}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  ))
+}

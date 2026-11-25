@@ -1,0 +1,20 @@
+---
+title: Browser support
+description: Which browsers medkit supports, and what each element does where a feature is missing.
+sidebar: { order: 4 }
+---
+
+The last two and a half years of Chrome, Edge, Firefox and Safari, iOS included, with no
+polyfills. Older browsers get the server-rendered HTML, which works on its own.
+
+| Missing | What happens |
+| --- | --- |
+| JavaScript | Images show; the background is its poster and overlay; the player is the browser's own |
+| `navigator.connection` (Firefox, Safari) | The rendition steps down by the poster's download speed only |
+| Element fullscreen (iPhone) | The video's own fullscreen |
+| Setting volume (iOS, iPadOS) | The volume slider is hidden; the hardware buttons work |
+| Native HLS | hls.js if registered, else MP4 |
+| Customized built-ins (Safari) | Not used: every element is its own tag, never `<img is="…">` |
+
+Tested in CI on Playwright's Chromium, Firefox and WebKit, which is Safari's engine on Linux,
+not Safari itself. iPhone checks are by hand.

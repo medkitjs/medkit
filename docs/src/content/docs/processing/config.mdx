@@ -1,0 +1,74 @@
+---
+title: medkit.config.js
+description: One config file for where media comes from, where it goes and how videos are encoded, read by the CLI and the Vite plugin.
+sidebar: { order: 3 }
+---
+
+```js title="medkit.config.js"
+export default {
+  srcDir: 'src/media', // source media
+  outDir: 'public/media', // where files are written
+  baseUrl: '/media/', // where they are served from, or a CDN URL
+  video: {
+    ladder: [480, 720, 1080],
+    av1: false,
+    hls: false,
+    keepAudio: false,
+    maxrate: { 480: 800, 720: 1600, 1080: 3000 },
+    files: {
+      'hero.mp4': { trim: { start: 2, end: 12 }, posterAt: 0, keepAudio: true },
+    },
+  },
+};
+```
+
+Every key is optional; the values above are the defaults, except `files`. Paths are relative
+to the config file. An unknown key or a wrong type is an error. Only an ES module named
+`medkit.config.js` is read.
+
+| Key | What it does | Default |
+| --- | --- | --- |
+| `srcDir` | Source folder: the CLI's default, and what `video.files` keys are relative to | `src/media` |
+| `outDir` | Where renditions and manifests are written | `public/media` |
+| `baseUrl` | Where `outDir` is served. Manifests hold file names only, so moving to a CDN is this line, not a reprocess | `/media/` |
+
+`baseUrl` is not read by the renderers: pass the same value to `renderImage()` and the others
+as `baseUrl` when it is not `/media/`.
+
+## Video options
+
+Set under `video` for every video, and per file under `video.files`, keyed by the path
+relative to `srcDir`, with `/` on every platform.
+
+| Option | What it does | Default |
+| --- | --- | --- |
+| `ladder` | Heights to encode, by the short side, so portrait video gets the same sizes; never above the source | `[480, 720, 1080]` |
+| `av1` | Also encode AV1, smaller but slow to encode | `false` |
+| `hls` | Package HLS from the same encodes, for the player | `false` |
+| `keepAudio` | Keep the sound, so the background shows a sound button | `false` |
+| `maxrate` | kbps cap per rung, or `false` for plain CRF | 800 / 1600 / 3000 |
+| `player` | `{ keepAudio, hls, ladder }`: a second set for the player that expand opens | none |
+| `trim` | `{ start, end }` in seconds, cut at encode time | none |
+| `posterAt` | Second the poster is taken from; playback starts and loops there | `0` |
+
+H.264 High profile at CRF 23 is always encoded, because it plays everywhere. A rung missing
+from `maxrate` gets a cap between its neighbours. The buffer starts full, so a clip's average
+can exceed its cap by up to twice `maxrate` kbit spread over its length.
+
+To start somewhere other than 0:00, prefer `trim`: the file then begins at that moment, so
+the poster is still its first frame and the file is smaller. `posterAt` keeps the whole file
+and starts there.
+
+## Image defaults
+
+| Setting | Default |
+| --- | --- |
+| Widths | 320, 640, 960, 1280, 1920, 2560, never above the original; each snapped so its height is a whole number at the exact ratio |
+| AVIF | quality 50, effort 4 |
+| WebP | quality 75 |
+| JPEG | quality 80, mozjpeg; transparency flattened onto white |
+| Metadata | Orientation applied, then all of it removed, GPS included |
+| Colour | Converted to sRGB |
+
+Image options are not in the config file in v0.1; `processImage()` takes `widths` and
+`background` from code.

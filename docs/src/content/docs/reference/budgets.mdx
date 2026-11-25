@@ -1,0 +1,29 @@
+---
+title: Performance budgets
+description: The size, layout-shift and loading budgets every pull request is checked against.
+sidebar: { order: 2 }
+---
+
+import limits from '../../../../../.size-limit.json' with { type: 'json' };
+
+Every budget is checked in CI; a pull request that breaks one fails.
+
+<table>
+  <thead><tr><th scope="col">Code</th><th scope="col">Budget, gzipped</th></tr></thead>
+  <tbody>{limits.map((l) => <tr><td>{l.name}</td><td>{l.limit}</td></tr>)}</tbody>
+</table>
+
+Read from the repository's `.size-limit.json` when this site is built, and measured by
+size-limit. A KB is 1000 bytes. Raising a budget needs a written reason in the project's
+decisions.
+
+| Behaviour | Budget | Checked by |
+| --- | --- | --- |
+| Layout shift caused by medkit | 0 | CLS from web-vitals in Chromium; element positions before and after images load in all three engines |
+| Hero image or poster | Can be the largest paint without waiting for JavaScript | Playwright |
+| Video bytes before the element is within 200 px of the viewport | 0 | Playwright network log |
+| hls.js | Loaded only when HLS plays in a browser without native HLS | Playwright network log |
+| Inline placeholder | At most 600 characters | Manifest schema |
+
+Only Chromium implements the Layout Instability API that CLS is built on, so elsewhere the
+check compares element positions instead of reporting a CLS number.

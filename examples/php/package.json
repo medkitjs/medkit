@@ -1,0 +1,15 @@
+{
+  "name": "@medkitjs/example-php",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "medkit process && node render.js",
+    "start": "php -S localhost:8000 -t public"
+  },
+  "dependencies": {
+    "@medkitjs/elements": "workspace:*"
+  },
+  "devDependencies": {
+    "@medkitjs/cli": "workspace:*"
+  }
+}

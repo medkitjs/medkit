@@ -1,0 +1,65 @@
+---
+title: CDN loaders
+description: Serve images through Cloudinary, imgix, Cloudflare Images or ImageKit, with no build step, or any CDN through a custom loader.
+sidebar: { order: 1 }
+---
+
+A loader turns a source path, a width and an optional quality into a CDN URL. The CDN
+resizes, and picks AVIF or WebP from the browser's request, so nothing is processed at build
+time.
+
+| Loader | Options |
+| --- | --- |
+| `cloudinary` | `{ cloudName }` |
+| `imgix` | `{ domain }` |
+| `cloudflare` | `{ zone }` |
+| `imagekit` | `{ urlEndpoint }` |
+| custom | `defineLoader((src, { width, quality }) => url)` |
+
+The URL each builds for a 640 px rendition:
+
+```txt
+cloudinary  https://res.cloudinary.com/<cloudName>/image/upload/c_limit,w_640/f_auto/q_auto/<src>
+imgix       https://<domain>/<src>?w=640&auto=format,compress
+cloudflare  https://<zone>/cdn-cgi/image/width=640,format=auto/<src>
+imagekit    <urlEndpoint>/<src>?tr=w-640,f-auto
+```
+
+Checked against each provider's documentation in November 2026. Cloudflare needs
+transformations enabled on the zone.
+
+## On the server
+
+```js
+import { cloudinary, renderImage } from '@medkitjs/elements';
+
+renderImage('samples/lake.jpg', { loader: cloudinary({ cloudName: 'demo' }), alt: '…', width: 1600, height: 900 });
+```
+
+`width` and `height` are required, because there is no manifest to read them from. The
+`<img>` also gets `aspect-ratio`, because a CDN rounds each file's height.
+
+## In the browser, with no build step
+
+```html
+<script type="module">
+  import { configure, cloudinary } from '/medkit/index.js';
+  import '/medkit/image.js';
+  configure({ loader: cloudinary({ cloudName: 'demo' }) });
+</script>
+
+<medkit-image src="samples/lake.jpg" alt="A lake" width="1600" height="900" style="aspect-ratio: 1600 / 900"></medkit-image>
+```
+
+The element renders its own picture. It needs `style="aspect-ratio: …"` to reserve its box
+until then; without it, the page moves. Several CDNs: `configure({ loaders: { name: … } })`,
+then `loader="name"` on the element.
+
+## How it differs from local processing
+
+| | Local | CDN |
+| --- | --- | --- |
+| Formats | One `<source>` per format | One srcset; the CDN picks the format |
+| Dimensions | From the manifest | You pass them |
+| Blur | Inlined, at most 600 characters | A ~24 px CDN image as a background, or a solid colour for `priority` images, to keep a request out of the critical path |
+| Cost | Build time and storage | The CDN's bill |
